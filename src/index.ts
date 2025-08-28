@@ -68,7 +68,8 @@ async function main(): Promise<void> {
 
   // collect all the available plates and log them
   const allAvailablePlates = workers.flatMap((worker) => worker.availablePlates);
-  console.log(`\nFound ${allAvailablePlates.length} available plates:`);
+  const numPlatesChecked = workers.reduce((sum, worker) => sum + worker.platesChecked, 0);
+  console.log(`\nFound ${allAvailablePlates.length}/${numPlatesChecked} available plates:`);
   // write this to available-plates.txt
   const outputFile = "available-plates.txt";
   const fileContent = allAvailablePlates.sort().join("\n");

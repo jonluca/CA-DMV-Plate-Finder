@@ -10,6 +10,7 @@ export class PlateFinder {
   private sessionId: string = "";
   private cookies: string = "";
   public availablePlates: string[];
+  public platesChecked = 0;
   private plateGenerator: AsyncGenerator<string>;
 
   constructor(plateGenerator: AsyncGenerator<string>) {
@@ -132,6 +133,7 @@ export class PlateFinder {
       if (status === "ERROR") {
         console.error(`Failed to check plate ${plate}`);
       }
+      this.platesChecked++;
     }
   }
 }
