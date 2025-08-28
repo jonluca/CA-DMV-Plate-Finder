@@ -9,10 +9,12 @@ export class PlateFinder {
   private agent: Agent;
   private sessionId: string = "";
   private cookies: string = "";
+  public availablePlates: string[];
   private plateGenerator: AsyncGenerator<string>;
 
   constructor(plateGenerator: AsyncGenerator<string>) {
     this.plateGenerator = plateGenerator;
+    this.availablePlates = [];
     this.agent = new Agent({
       keepAliveTimeout: 60000,
       keepAliveMaxTimeout: 600000,
@@ -50,6 +52,7 @@ export class PlateFinder {
           if (jsessionMatch && jsessionMatch[1]) {
             this.sessionId = jsessionMatch[1];
             this.cookies = `JSESSIONID=${this.sessionId}`;
+            console.debug(`Initialized session with ID: ${this.sessionId}`);
           }
         }
       }
@@ -112,6 +115,7 @@ export class PlateFinder {
 
       if (plateStatus === "AVAILABLE") {
         console.log(`${plate.toUpperCase()} is AVAILABLE`);
+        this.availablePlates.push(plate.toUpperCase());
       }
 
       return plateStatus;
@@ -129,9 +133,5 @@ export class PlateFinder {
         console.error(`Failed to check plate ${plate}`);
       }
     }
-  }
-
-  async close(): Promise<void> {
-    await this.agent.close();
   }
 }

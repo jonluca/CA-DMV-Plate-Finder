@@ -2,14 +2,15 @@
 
 import { PlateFinder } from "./plateFinder.js";
 import { existsSync } from "fs";
-import { createReadStream } from "fs";
+import { createReadStream, writeFileSync } from "fs";
 import { createInterface } from "readline";
 import { combinationsWithReplacement } from "combinatorial-generators";
 
-const NUM_PARALLEL = Number(process.env.NUM_PARALLEL || 10);
+const NUM_PARALLEL = Number(process.env.NUM_PARALLEL || 50);
 
 const MINIMUM_LENGTH = 2;
 const MAXIMUM_LENGTH = 7;
+const COMBO_LENGTH = 3;
 
 async function* getNextPlate(): AsyncGenerator<string> {
   yield "TEST"; // Initial yield for the instantiation call
@@ -33,12 +34,12 @@ async function* getNextPlate(): AsyncGenerator<string> {
       }
     }
   } else {
-    console.log("No plates.txt found, generating 3-character combinations...");
+    console.log(`No plates.txt found, generating ${COMBO_LENGTH}-character combinations...`);
 
     // Fall back to generating combinations
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
 
-    for (const combo of combinationsWithReplacement(chars, 3)) {
+    for (const combo of combinationsWithReplacement(chars, COMBO_LENGTH)) {
       yield combo.join("");
     }
   }
@@ -65,13 +66,19 @@ async function main(): Promise<void> {
   // Wait for all workers to complete
   await Promise.all(workerPromises);
 
-  // Clean up workers
-  await Promise.all(workers.map((worker) => worker.close()));
-
+  // collect all the available plates and log them
+  const allAvailablePlates = workers.flatMap((worker) => worker.availablePlates);
+  console.log(`\nFound ${allAvailablePlates.length} available plates:`);
+  // write this to available-plates.txt
+  const outputFile = "available-plates.txt";
+  const fileContent = allAvailablePlates.join("\n");
+  writeFileSync(outputFile, fileContent);
+  console.log(`Available plates written to ${outputFile}`);
   // Calculate and display the total execution time
   const endTime = Date.now();
   const totalDuration = (endTime - startTime) / 1000;
   console.log(`\nTotal Time: ${totalDuration.toFixed(2)} seconds`);
+  process.exit(0);
 }
 
 await main();
