@@ -71,7 +71,7 @@ async function main(): Promise<void> {
   console.log(`\nFound ${allAvailablePlates.length} available plates:`);
   // write this to available-plates.txt
   const outputFile = "available-plates.txt";
-  const fileContent = allAvailablePlates.join("\n");
+  const fileContent = allAvailablePlates.sort().join("\n");
   writeFileSync(outputFile, fileContent);
   console.log(`Available plates written to ${outputFile}`);
   // Calculate and display the total execution time
