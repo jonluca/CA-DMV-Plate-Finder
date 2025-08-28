@@ -7,6 +7,10 @@ import { createInterface } from "readline";
 import { combinationsWithReplacement } from "combinatorial-generators";
 
 const NUM_PARALLEL = Number(process.env.NUM_PARALLEL || 10);
+
+const MINIMUM_LENGTH = 2;
+const MAXIMUM_LENGTH = 7;
+
 async function* getNextPlate(): AsyncGenerator<string> {
   yield "TEST"; // Initial yield for the instantiation call
   const platesFile = "plates.txt";
@@ -24,7 +28,7 @@ async function* getNextPlate(): AsyncGenerator<string> {
 
     for await (const line of rl) {
       const trimmedLine = line.trim();
-      if (trimmedLine) {
+      if (trimmedLine && trimmedLine.length >= MINIMUM_LENGTH && trimmedLine.length <= MAXIMUM_LENGTH) {
         yield trimmedLine;
       }
     }
