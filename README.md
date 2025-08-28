@@ -1,6 +1,6 @@
 # CA DMV Plate Finder
 
-A script that finds available custom license plates through the California DMV's online system.
+A script that finds available custom license plates through the California DMV's online system. This is the codebase corrsponding to this blog post on [finding available California license plates](https://blog.jonlu.ca/posts/ca-plate-checker).
 
 ## Prerequisites
 
@@ -34,13 +34,6 @@ Or directly:
 ```bash
 bun src/index.ts
 ```
-
-### Configuration
-
-Edit `src/config.ts` to adjust:
-
-- `NUM_PARALLEL`: Number of concurrent workers (default: 10)
-- API endpoints and headers (pre-configured for DMV system)
 
 ### Customizing Plate Input
 
