@@ -3,7 +3,8 @@
     "allow": [
       "Bash(bun run:*)",
       "Bash(bun add:*)",
-      "Bash(bun remove:*)"
+      "Bash(bun remove:*)",
+      "WebFetch(domain:trpc.io)"
     ],
     "deny": [],
     "ask": []

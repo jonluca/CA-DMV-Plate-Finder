@@ -1,14 +1,17 @@
 import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
-import { observable } from "@trpc/server/observable";
+import { tracked } from "@trpc/server";
 import { PlateFinder } from "../../../plateFinder";
 
 interface PlateResult {
-  plate: string;
-  status: "AVAILABLE" | "UNAVAILABLE" | "ERROR" | "CHECKING";
-  timestamp: Date;
-  error?: string;
-  totalChecked?: number;
+  id: string;
+  data: {
+    plate: string;
+    status: "AVAILABLE" | "UNAVAILABLE" | "ERROR" | "CHECKING";
+    timestamp: Date;
+    error?: string;
+    totalChecked?: number;
+  };
 }
 
 async function* createPlateGenerator(plates: string[]): AsyncGenerator<string> {
@@ -24,77 +27,65 @@ export const plateCheckerRouter = createTRPCRouter({
         plates: z.array(z.string().min(1).max(7)),
       }),
     )
-    .subscription(({ input }) => {
-      return observable<PlateResult>((emit) => {
-        let isSubscribed = true;
+    .subscription(async function* ({ input }) {
+      const plateGenerator = createPlateGenerator(input.plates);
+      const plateFinder = new PlateFinder(plateGenerator);
 
-        const runPlateChecker = async () => {
+      let eventId = 0;
+
+      try {
+        yield tracked(String(eventId++), {
+          plate: "SYSTEM",
+          status: "CHECKING" as const,
+          timestamp: new Date(),
+          error: "Initializing DMV session...",
+        });
+
+        await plateFinder.initialize();
+
+        yield tracked(String(eventId++), {
+          plate: "SYSTEM",
+          status: "CHECKING" as const,
+          timestamp: new Date(),
+          error: "Session initialized. Starting plate checks...",
+        });
+
+        for (const plate of input.plates) {
+          yield tracked(String(eventId++), {
+            plate: plate.toUpperCase(),
+            status: "CHECKING" as const,
+            timestamp: new Date(),
+          });
+
           try {
-            const plateGenerator = createPlateGenerator(input.plates);
-            const plateFinder = new PlateFinder(plateGenerator);
+            const status = await plateFinder.getPlateStatus(plate);
 
-            await emit.next({
-              plate: "SYSTEM",
-              status: "CHECKING",
+            yield tracked(String(eventId++), {
+              plate: plate.toUpperCase(),
+              status: status === "AVAILABLE" ? "AVAILABLE" as const :
+                     status === "ERROR" ? "ERROR" as const : "UNAVAILABLE" as const,
               timestamp: new Date(),
-              error: "Initializing DMV session...",
+              totalChecked: plateFinder.platesChecked,
+              ...(status === "ERROR" && { error: "Failed to check plate" }),
             });
-
-            await plateFinder.initialize();
-
-            await emit.next({
-              plate: "SYSTEM",
-              status: "CHECKING",
-              timestamp: new Date(),
-              error: "Session initialized. Starting plate checks...",
-            });
-
-            for (const plate of input.plates) {
-              if (!isSubscribed) break;
-
-              await emit.next({
-                plate: plate.toUpperCase(),
-                status: "CHECKING",
-                timestamp: new Date(),
-              });
-
-              try {
-                const status = await plateFinder.getPlateStatus(plate);
-
-                await emit.next({
-                  plate: plate.toUpperCase(),
-                  status: status === "AVAILABLE" ? "AVAILABLE" :
-                         status === "ERROR" ? "ERROR" : "UNAVAILABLE",
-                  timestamp: new Date(),
-                  totalChecked: plateFinder.platesChecked,
-                  ...(status === "ERROR" && { error: "Failed to check plate" }),
-                });
-              } catch (error) {
-                await emit.next({
-                  plate: plate.toUpperCase(),
-                  status: "ERROR",
-                  timestamp: new Date(),
-                  error: error instanceof Error ? error.message : "Unknown error",
-                  totalChecked: plateFinder.platesChecked,
-                });
-              }
-            }
           } catch (error) {
-            await emit.next({
-              plate: "SYSTEM",
-              status: "ERROR",
+            yield tracked(String(eventId++), {
+              plate: plate.toUpperCase(),
+              status: "ERROR" as const,
               timestamp: new Date(),
-              error: error instanceof Error ? error.message : "Unknown error occurred",
+              error: error instanceof Error ? error.message : "Unknown error",
+              totalChecked: plateFinder.platesChecked,
             });
           }
-        };
-
-        void runPlateChecker();
-
-        return () => {
-          isSubscribed = false;
-        };
-      });
+        }
+      } catch (error) {
+        yield tracked(String(eventId++), {
+          plate: "SYSTEM",
+          status: "ERROR" as const,
+          timestamp: new Date(),
+          error: error instanceof Error ? error.message : "Unknown error occurred",
+        });
+      }
     }),
 
   quickCheck: publicProcedure

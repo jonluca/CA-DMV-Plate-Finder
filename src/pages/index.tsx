@@ -30,7 +30,8 @@ export default function Home() {
   api.plateChecker.checkPlates.useSubscription(
     isChecking ? { plates } : skipToken,
     {
-      onData: (data) => {
+      onData: (trackedData) => {
+        const data = trackedData.data;
         setResults(prev => [...prev, data]);
         if (data.plate === "SYSTEM" && data.status === "CHECKING") {
           setConnectionStatus("connected");
