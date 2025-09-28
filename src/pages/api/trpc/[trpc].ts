@@ -14,3 +14,7 @@ export default createNextApiHandler({
         }
       : undefined,
 });
+export const config = {
+  // Specifies the maximum allowed duration for this function to execute (in seconds)
+  maxDuration: 800,
+};
