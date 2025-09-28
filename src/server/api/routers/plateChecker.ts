@@ -20,6 +20,8 @@ async function* createPlateGenerator(plates: string[]): AsyncGenerator<string> {
   }
 }
 
+const PARALLEL_WORKERS = 10;
+
 export const plateCheckerRouter = createTRPCRouter({
   checkPlates: publicProcedure
     .input(
@@ -28,56 +30,104 @@ export const plateCheckerRouter = createTRPCRouter({
       }),
     )
     .subscription(async function* ({ input }) {
-      const plateGenerator = createPlateGenerator(input.plates);
-      const plateFinder = new PlateFinder(plateGenerator);
-
       let eventId = 0;
+      let totalChecked = 0;
+      const resultQueue: Array<{
+        plate: string;
+        status: "AVAILABLE" | "UNAVAILABLE" | "ERROR";
+        error?: string;
+      }> = [];
 
       try {
         yield tracked(String(eventId++), {
           plate: "SYSTEM",
           status: "CHECKING" as const,
           timestamp: new Date(),
-          error: "Initializing DMV session...",
+          error: `Initializing ${PARALLEL_WORKERS} parallel DMV sessions...`,
         });
 
-        await plateFinder.initialize();
+        // Initialize multiple PlateFinder instances for parallelization
+        const plateFinders: PlateFinder[] = [];
+        for (let i = 0; i < PARALLEL_WORKERS; i++) {
+          const finder = new PlateFinder(createPlateGenerator([]));
+          await finder.initialize();
+          plateFinders.push(finder);
+        }
 
         yield tracked(String(eventId++), {
           plate: "SYSTEM",
           status: "CHECKING" as const,
           timestamp: new Date(),
-          error: "Session initialized. Starting plate checks...",
+          error: `${PARALLEL_WORKERS} sessions initialized. Starting parallel plate checks...`,
         });
 
-        for (const plate of input.plates) {
-          yield tracked(String(eventId++), {
-            plate: plate.toUpperCase(),
-            status: "CHECKING" as const,
-            timestamp: new Date(),
+        // Process plates in parallel batches
+        const processPlateBatch = async (plates: string[], startIdx: number) => {
+          const promises = plates.map(async (plate, idx) => {
+            const finderIdx = (startIdx + idx) % PARALLEL_WORKERS;
+            const finder = plateFinders[finderIdx];
+
+            if (!finder) {
+              return {
+                plate: plate.toUpperCase(),
+                status: "ERROR" as const,
+                error: "Finder instance not available",
+              };
+            }
+
+            try {
+              const status = await finder.getPlateStatus(plate);
+              return {
+                plate: plate.toUpperCase(),
+                status: status === "AVAILABLE" ? "AVAILABLE" as const :
+                       status === "ERROR" ? "ERROR" as const : "UNAVAILABLE" as const,
+                ...(status === "ERROR" && { error: "Failed to check plate" }),
+              };
+            } catch (error) {
+              return {
+                plate: plate.toUpperCase(),
+                status: "ERROR" as const,
+                error: error instanceof Error ? error.message : "Unknown error",
+              };
+            }
           });
 
-          try {
-            const status = await plateFinder.getPlateStatus(plate);
+          return Promise.all(promises);
+        };
 
+        // Process plates in batches of PARALLEL_WORKERS
+        for (let i = 0; i < input.plates.length; i += PARALLEL_WORKERS) {
+          const batch = input.plates.slice(i, i + PARALLEL_WORKERS);
+
+          // Emit "CHECKING" status for all plates in the batch
+          for (const plate of batch) {
             yield tracked(String(eventId++), {
               plate: plate.toUpperCase(),
-              status: status === "AVAILABLE" ? "AVAILABLE" as const :
-                     status === "ERROR" ? "ERROR" as const : "UNAVAILABLE" as const,
+              status: "CHECKING" as const,
               timestamp: new Date(),
-              totalChecked: plateFinder.platesChecked,
-              ...(status === "ERROR" && { error: "Failed to check plate" }),
             });
-          } catch (error) {
+          }
+
+          // Process batch in parallel
+          const results = await processPlateBatch(batch, i);
+
+          // Emit results as they complete
+          for (const result of results) {
+            totalChecked++;
             yield tracked(String(eventId++), {
-              plate: plate.toUpperCase(),
-              status: "ERROR" as const,
+              ...result,
               timestamp: new Date(),
-              error: error instanceof Error ? error.message : "Unknown error",
-              totalChecked: plateFinder.platesChecked,
+              totalChecked,
             });
           }
         }
+
+        yield tracked(String(eventId++), {
+          plate: "SYSTEM",
+          status: "CHECKING" as const,
+          timestamp: new Date(),
+          error: `Completed checking ${totalChecked} plates.`,
+        });
       } catch (error) {
         yield tracked(String(eventId++), {
           plate: "SYSTEM",
