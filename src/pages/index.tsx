@@ -181,21 +181,6 @@ export default function Home() {
     }
   };
 
-  const getStatusBorder = (status: PlateResult["status"]) => {
-    switch (status) {
-      case "AVAILABLE":
-        return "border-green-400";
-      case "UNAVAILABLE":
-        return "border-red-400";
-      case "ERROR":
-        return "border-yellow-400";
-      case "CHECKING":
-        return "border-blue-400";
-      default:
-        return "border-gray-400";
-    }
-  };
-
   return (
     <>
       <Head>
