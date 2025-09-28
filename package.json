@@ -32,7 +32,6 @@
     "typescript-eslint": "^8.41.0"
   },
   "dependencies": {
-    "@t3-oss/env-nextjs": "^0.12.0",
     "@tanstack/react-query": "^5.69.0",
     "@trpc/client": "^11.0.0",
     "@trpc/next": "^11.0.0",

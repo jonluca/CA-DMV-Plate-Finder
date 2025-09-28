@@ -191,6 +191,19 @@ export default function Home() {
             California DMV <span className="text-blue-400">Plate Checker</span>
           </h1>
 
+          <div className="text-center mb-6">
+            <a
+              href="https://blog.jonlu.ca/posts/ca-plate-checker"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors text-sm"
+            >
+              <span>📖</span>
+              <span>Read the blog post about how this works</span>
+              <span>→</span>
+            </a>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
             <div className="lg:col-span-1 space-y-6">
               <div className="bg-gray-800 rounded-lg p-6">
