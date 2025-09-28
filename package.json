@@ -40,6 +40,7 @@
     "@trpc/server": "^11.0.0",
     "combinatorial-generators": "^1.1.2",
     "next": "^15.2.3",
+    "p-map": "^7.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "superjson": "^2.2.1",

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { tracked } from "@trpc/server";
 import { PlateFinder } from "~/plateFinder";
+import { pMapIterable } from "p-map";
 
 async function* createPlateGenerator(plates: string[]): AsyncGenerator<string> {
   for (const plate of plates) {
@@ -15,7 +16,7 @@ export const plateCheckerRouter = createTRPCRouter({
   checkPlates: publicProcedure
     .input(
       z.object({
-        plates: z.array(z.string().min(1).max(7)),
+        plates: z.array(z.string().min(1).max(1000)),
       }),
     )
     .subscription(async function* ({ input }) {
@@ -31,19 +32,11 @@ export const plateCheckerRouter = createTRPCRouter({
           plateFinders.push(finder);
         }
 
-        // Process plates in parallel batches
-        const processPlateBatch = async (plates: string[], startIdx: number) => {
-          const promises = plates.map(async (plate, idx) => {
-            const finderIdx = (startIdx + idx) % PARALLEL_WORKERS;
-            const finder = plateFinders[finderIdx];
-
-            if (!finder) {
-              return {
-                plate: plate.toUpperCase(),
-                status: "ERROR" as const,
-                error: "Finder instance not available",
-              };
-            }
+        const plates = input.plates.slice(0, 1000);
+        const resultsIterable = pMapIterable(
+          plates,
+          async (plate, index) => {
+            const finder = plateFinders[index % plateFinders.length]!;
 
             try {
               const status = await finder.getPlateStatus(plate);
@@ -51,6 +44,7 @@ export const plateCheckerRouter = createTRPCRouter({
                 plate: plate.toUpperCase(),
                 status:
                   status === "AVAILABLE" ? ("AVAILABLE" as const) : status === "ERROR" ? ("ERROR" as const) : ("UNAVAILABLE" as const),
+                timestamp: new Date(),
                 ...(status === "ERROR" && { error: "Failed to check plate" }),
               };
             } catch (error) {
@@ -58,29 +52,20 @@ export const plateCheckerRouter = createTRPCRouter({
                 plate: plate.toUpperCase(),
                 status: "ERROR" as const,
                 error: error instanceof Error ? error.message : "Unknown error",
+                timestamp: new Date(),
               };
             }
+          },
+          { concurrency: PARALLEL_WORKERS },
+        );
+
+        // Yield results as they complete
+        for await (const result of resultsIterable) {
+          totalChecked++;
+          yield tracked(String(eventId++), {
+            ...result,
+            totalChecked,
           });
-
-          return Promise.all(promises);
-        };
-
-        // Process plates in batches of PARALLEL_WORKERS
-        for (let i = 0; i < input.plates.length; i += PARALLEL_WORKERS) {
-          const batch = input.plates.slice(i, i + PARALLEL_WORKERS);
-
-          // Process batch in parallel
-          const results = await processPlateBatch(batch, i);
-
-          // Emit results as they complete
-          for (const result of results) {
-            totalChecked++;
-            yield tracked(String(eventId++), {
-              ...result,
-              timestamp: new Date(),
-              totalChecked,
-            });
-          }
         }
       } catch (error) {
         yield tracked(String(eventId++), {

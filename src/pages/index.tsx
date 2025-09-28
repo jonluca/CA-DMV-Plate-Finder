@@ -19,8 +19,6 @@ export default function Home() {
   const [inputText, setInputText] = useState("");
   const [plates, setPlates] = useState<string[]>([]);
   const [results, setResults] = useState<PlateResult[]>([]);
-  const [isChecking, setIsChecking] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<"idle" | "connecting" | "connected" | "error">("idle");
   const [filter, setFilter] = useState<FilterType>("all");
   const [sortField, setSortField] = useState<SortField>("timestamp");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -34,7 +32,7 @@ export default function Home() {
     scrollToBottom();
   }, [results]);
 
-  api.plateChecker.checkPlates.useSubscription(isChecking ? { plates } : skipToken, {
+  const result = api.plateChecker.checkPlates.useSubscription(plates.length ? { plates } : skipToken, {
     onData: (trackedData) => {
       const data = trackedData.data;
       setResults((prev) => {
@@ -47,16 +45,13 @@ export default function Home() {
         }
         return [...prev, data];
       });
-      if (data.plate === "SYSTEM" && data.status === "CHECKING") {
-        setConnectionStatus("connected");
-      }
     },
     onError: (err) => {
       console.error("Subscription error:", err);
-      setConnectionStatus("error");
-      setIsChecking(false);
     },
   });
+
+  const isChecking = result.status === "pending" || result.status === "connecting";
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(e.target.value);
@@ -77,22 +72,18 @@ export default function Home() {
 
     setPlates(parsedPlates);
     setResults([]);
-    setIsChecking(true);
-    setConnectionStatus("connecting");
     setFilter("all");
   };
 
   const handleStop = () => {
-    setIsChecking(false);
-    setConnectionStatus("idle");
+    result.reset();
+    setPlates([]);
   };
 
   const handleClear = () => {
     setInputText("");
     setPlates([]);
     setResults([]);
-    setIsChecking(false);
-    setConnectionStatus("idle");
     setFilter("all");
   };
 
@@ -262,27 +253,8 @@ export default function Home() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-gray-400">Errors:</span>
-                    <span className="font-semibold text-yellow-400">{errorCount}</span>
+                    <span className="font-semibold text-red-400">{errorCount}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Connection:</span>
-                    <span
-                      className={`font-semibold ${
-                        connectionStatus === "connected"
-                          ? "text-green-400"
-                          : connectionStatus === "connecting"
-                            ? "text-yellow-400"
-                            : connectionStatus === "error"
-                              ? "text-red-400"
-                              : "text-gray-400"
-                      }`}
-                    >
-                      {connectionStatus.toUpperCase()}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-4 pt-4 border-t border-gray-700">
-                  <div className="text-xs text-gray-500">Processing with 10x parallelization</div>
                 </div>
               </div>
 
