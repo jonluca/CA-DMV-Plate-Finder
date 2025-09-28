@@ -136,4 +136,15 @@ export class PlateFinder {
       this.platesChecked++;
     }
   }
+
+  async *checkPlatesWithResults() {
+    for await (const plate of this.plateGenerator) {
+      const status = await this.getPlateStatus(plate);
+      if (status === "ERROR") {
+        console.error(`Failed to check plate ${plate}`);
+      }
+      this.platesChecked++;
+      yield { plate: plate.toUpperCase(), status };
+    }
+  }
 }
