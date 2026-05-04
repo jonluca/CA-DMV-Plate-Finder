@@ -8,10 +8,13 @@ import unusedImportsPlugin from "eslint-plugin-unused-imports";
 
 export default defineConfig([
   {
-    files: ["**/*.{js,mjs,cjs,ts,mts,cts}"],
+    ignores: [".next/**", "node_modules/**", "next-env.d.ts", "tsconfig.json", "tsconfig.tsbuildinfo", "bun.lock"],
+  },
+  {
+    files: ["**/*.{js,mjs,cjs,ts,mts,cts,tsx}"],
     plugins: { js, "unused-imports": unusedImportsPlugin },
     extends: ["js/recommended", prettierExtends],
-    languageOptions: { globals: globals.node },
+    languageOptions: { globals: { ...globals.browser, ...globals.node } },
     rules: {
       "unused-imports/no-unused-imports": "error",
     },

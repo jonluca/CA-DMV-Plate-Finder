@@ -2,16 +2,17 @@ import Head from "next/head";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { api } from "~/utils/api";
 import { skipToken } from "@tanstack/react-query";
+import { parsePlateCandidates } from "~/plateRules";
 
 interface PlateResult {
   plate: string;
-  status: "AVAILABLE" | "UNAVAILABLE" | "ERROR" | "CHECKING";
+  status: "AVAILABLE" | "UNAVAILABLE" | "INVALID" | "ERROR" | "CHECKING";
   timestamp: Date;
   error?: string;
   totalChecked?: number;
 }
 
-type FilterType = "all" | "available" | "unavailable" | "error";
+type FilterType = "all" | "available" | "unavailable" | "invalid" | "error";
 type SortField = "plate" | "status" | "timestamp";
 type SortDirection = "asc" | "desc";
 
@@ -58,15 +59,13 @@ export default function Home() {
   };
 
   const parsePlates = (text: string): string[] => {
-    const plateRegex = /[A-Za-z0-9]{1,7}/g;
-    const matches = text.match(plateRegex) || [];
-    return [...new Set(matches.filter((p) => p.length >= 1 && p.length <= 7))];
+    return parsePlateCandidates(text);
   };
 
   const handleCheckPlates = () => {
     const parsedPlates = parsePlates(inputText);
     if (parsedPlates.length === 0) {
-      alert("Please enter at least one valid plate (1-7 characters)");
+      alert("Please enter at least one plate candidate");
       return;
     }
 
@@ -97,6 +96,8 @@ export default function Home() {
           return r.status === "AVAILABLE";
         case "unavailable":
           return r.status === "UNAVAILABLE";
+        case "invalid":
+          return r.status === "INVALID";
         case "error":
           return r.status === "ERROR";
         default:
@@ -153,6 +154,7 @@ export default function Home() {
 
   const availableCount = plateResults.filter((r) => r.status === "AVAILABLE").length;
   const unavailableCount = plateResults.filter((r) => r.status === "UNAVAILABLE").length;
+  const invalidCount = plateResults.filter((r) => r.status === "INVALID").length;
   const errorCount = plateResults.filter((r) => r.status === "ERROR").length;
   const checkingCount = plateResults.filter((r) => r.status === "CHECKING").length;
   const totalChecked = plateResults.filter((r) => r.status !== "CHECKING").length;
@@ -163,6 +165,8 @@ export default function Home() {
         return "bg-green-500 text-white";
       case "UNAVAILABLE":
         return "bg-red-500 text-white";
+      case "INVALID":
+        return "bg-orange-500 text-black";
       case "ERROR":
         return "bg-yellow-500 text-black";
       case "CHECKING":
@@ -216,6 +220,10 @@ export default function Home() {
                   disabled={isChecking}
                 />
                 <div className="mt-4 text-sm text-gray-400">Detected plates: {parsePlates(inputText).length}</div>
+                <p className="mt-2 text-xs text-gray-500">
+                  California 1960s Legacy personalized plates use 2-7 characters. Use letters, digits 1-9, * for full spaces, and / for
+                  half-spaces.
+                </p>
               </div>
 
               <div className="flex gap-4">
@@ -268,6 +276,10 @@ export default function Home() {
                     <span className="text-gray-400">Errors:</span>
                     <span className="font-semibold text-red-400">{errorCount}</span>
                   </div>
+                  <div className="flex justify-between">
+                    <span className="text-gray-400">Invalid:</span>
+                    <span className="font-semibold text-orange-400">{invalidCount}</span>
+                  </div>
                 </div>
               </div>
 
@@ -275,8 +287,8 @@ export default function Home() {
                 <div className="bg-gray-800 rounded-lg p-4">
                   <h3 className="text-sm font-semibold mb-2 text-gray-400">System Status</h3>
                   <div className="space-y-1 text-xs text-gray-500">
-                    {systemMessages.slice(-3).map((msg, idx) => (
-                      <div key={idx}>→ {msg.error}</div>
+                    {systemMessages.slice(-3).map((msg) => (
+                      <div key={`${msg.timestamp.toISOString()}-${msg.error ?? "system"}`}>→ {msg.error}</div>
                     ))}
                   </div>
                 </div>
@@ -311,6 +323,14 @@ export default function Home() {
                       }`}
                     >
                       Unavailable ({unavailableCount})
+                    </button>
+                    <button
+                      onClick={() => setFilter("invalid")}
+                      className={`px-3 py-1 rounded text-sm transition-colors ${
+                        filter === "invalid" ? "bg-orange-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
+                      }`}
+                    >
+                      Invalid ({invalidCount})
                     </button>
                     <button
                       onClick={() => setFilter("error")}
@@ -375,8 +395,8 @@ export default function Home() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-700">
-                        {filteredAndSortedResults.map((result, index) => (
-                          <tr key={`${result.plate}-${index}`} className="hover:bg-gray-800 transition-colors">
+                        {filteredAndSortedResults.map((result) => (
+                          <tr key={result.plate} className="hover:bg-gray-800 transition-colors">
                             <td className="px-4 py-3">
                               <span className="font-mono font-bold text-white">{result.plate}</span>
                             </td>

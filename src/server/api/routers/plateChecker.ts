@@ -3,6 +3,7 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { tracked } from "@trpc/server";
 import { PlateFinder } from "~/plateFinder";
 import { pMapIterable } from "p-map";
+import { MAX_PLATES_PER_CHECK, validatePlateCandidate } from "~/plateRules";
 
 async function* createPlateGenerator(plates: string[]): AsyncGenerator<string> {
   for (const plate of plates) {
@@ -16,7 +17,7 @@ export const plateCheckerRouter = createTRPCRouter({
   checkPlates: publicProcedure
     .input(
       z.object({
-        plates: z.array(z.string().min(1).max(1000)),
+        plates: z.array(z.string().min(1).max(32)).min(1).max(MAX_PLATES_PER_CHECK),
       }),
     )
     .subscription(async function* ({ input }) {
@@ -24,6 +25,39 @@ export const plateCheckerRouter = createTRPCRouter({
       let totalChecked = 0;
 
       try {
+        const validPlates: string[] = [];
+        const invalidPlates: Array<{ plate: string; errors: string[] }> = [];
+        const seenPlates = new Set<string>();
+
+        for (const plate of input.plates) {
+          const validation = validatePlateCandidate(plate);
+
+          if (!validation.valid) {
+            invalidPlates.push({ plate: validation.plate || plate.toUpperCase(), errors: validation.errors });
+            continue;
+          }
+
+          if (!seenPlates.has(validation.plate)) {
+            seenPlates.add(validation.plate);
+            validPlates.push(validation.plate);
+          }
+        }
+
+        for (const invalidPlate of invalidPlates) {
+          totalChecked++;
+          yield tracked(String(eventId++), {
+            plate: invalidPlate.plate,
+            status: "INVALID" as const,
+            timestamp: new Date(),
+            error: invalidPlate.errors.join(" "),
+            totalChecked,
+          });
+        }
+
+        if (validPlates.length === 0) {
+          return;
+        }
+
         // Initialize multiple PlateFinder instances for parallelization
         const plateFinders: PlateFinder[] = [];
         for (let i = 0; i < PARALLEL_WORKERS; i++) {
@@ -32,24 +66,30 @@ export const plateCheckerRouter = createTRPCRouter({
           plateFinders.push(finder);
         }
 
-        const plates = input.plates.slice(0, 1000);
         const resultsIterable = pMapIterable(
-          plates,
+          validPlates,
           async (plate, index) => {
             const finder = plateFinders[index % plateFinders.length]!;
 
             try {
               const status = await finder.getPlateStatus(plate);
               return {
-                plate: plate.toUpperCase(),
+                plate,
                 status:
-                  status === "AVAILABLE" ? ("AVAILABLE" as const) : status === "ERROR" ? ("ERROR" as const) : ("UNAVAILABLE" as const),
+                  status === "AVAILABLE"
+                    ? ("AVAILABLE" as const)
+                    : status === "ERROR"
+                      ? ("ERROR" as const)
+                      : status === "INVALID"
+                        ? ("INVALID" as const)
+                        : ("UNAVAILABLE" as const),
                 timestamp: new Date(),
                 ...(status === "ERROR" && { error: "Failed to check plate" }),
+                ...(status === "INVALID" && { error: "DMV rejected the plate configuration." }),
               };
             } catch (error) {
               return {
-                plate: plate.toUpperCase(),
+                plate,
                 status: "ERROR" as const,
                 error: error instanceof Error ? error.message : "Unknown error",
                 timestamp: new Date(),

@@ -5,11 +5,10 @@ import { existsSync } from "fs";
 import { createReadStream, writeFileSync } from "fs";
 import { createInterface } from "readline";
 import { combinationsWithReplacement } from "combinatorial-generators";
+import { MAX_PERSONALIZED_PLATE_LENGTH, MIN_PERSONALIZED_PLATE_LENGTH, validatePlateCandidate } from "./plateRules.js";
 
 const NUM_PARALLEL = Number(process.env.NUM_PARALLEL || 50);
 
-const MINIMUM_LENGTH = 2;
-const MAXIMUM_LENGTH = 7;
 const COMBO_LENGTH = 3;
 
 async function* getNextPlate(): AsyncGenerator<string> {
@@ -29,15 +28,22 @@ async function* getNextPlate(): AsyncGenerator<string> {
 
     for await (const line of rl) {
       const trimmedLine = line.trim();
-      if (trimmedLine && trimmedLine.length >= MINIMUM_LENGTH && trimmedLine.length <= MAXIMUM_LENGTH) {
-        yield trimmedLine;
+      if (!trimmedLine) {
+        continue;
+      }
+
+      const validation = validatePlateCandidate(trimmedLine);
+      if (validation.valid) {
+        yield validation.plate;
+      } else {
+        console.warn(`Skipping invalid plate ${validation.plate || trimmedLine}: ${validation.errors.join("; ")}`);
       }
     }
   } else {
     console.log(`No plates.txt found, generating ${COMBO_LENGTH}-character combinations...`);
 
     // Fall back to generating combinations
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456789";
 
     for (const combo of combinationsWithReplacement(chars, COMBO_LENGTH)) {
       yield combo.join("");
@@ -79,6 +85,9 @@ async function main(): Promise<void> {
   const endTime = Date.now();
   const totalDuration = (endTime - startTime) / 1000;
   console.log(`\nTotal Time: ${totalDuration.toFixed(2)} seconds`);
+  console.log(
+    `Plate rules: California 1960s Legacy personalized plates use ${MIN_PERSONALIZED_PLATE_LENGTH}-${MAX_PERSONALIZED_PLATE_LENGTH} characters.`,
+  );
   process.exit(0);
 }
 

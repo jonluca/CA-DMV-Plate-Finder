@@ -1,9 +1,12 @@
 import { Agent, request } from "undici";
 import userAgents from "top-user-agents";
+import { MAX_PERSONALIZED_PLATE_LENGTH, normalizePlateCandidate, validatePlateCandidate } from "./plateRules";
 
 const USER_AGENT = userAgents[0];
 const REFERER_URL = "https://www.dmv.ca.gov/wasapp/ipp2/initPers.do";
 const VALIDATION_ENDPOINT = "https://www.dmv.ca.gov/wasapp/ipp2/checkPers.do";
+
+export type PlateStatus = "AVAILABLE" | "UNAVAILABLE" | "INVALID" | "ERROR";
 
 export class PlateFinder {
   private agent: Agent;
@@ -70,23 +73,30 @@ export class PlateFinder {
   }
 
   private updatePayload(plateNumber: string): Record<string, string> {
+    const normalizedPlate = normalizePlateCandidate(plateNumber);
     const newPayload = {
       plateType: "Z",
       plateName: "California 1960s Legacy",
-      plateLength: "7",
+      plateLength: String(MAX_PERSONALIZED_PLATE_LENGTH),
       vehicleType: "AUTO",
     } as Record<string, string>;
 
     // Populate the payload with plate characters
-    for (let i = 0; i < 7; i++) {
-      newPayload[`plateChar${i}`] = plateNumber[i] || "";
+    for (let i = 0; i < MAX_PERSONALIZED_PLATE_LENGTH; i++) {
+      newPayload[`plateChar${i}`] = normalizedPlate[i] || "";
     }
 
     return newPayload;
   }
 
-  async getPlateStatus(plate: string): Promise<string> {
-    const payload = this.updatePayload(plate);
+  async getPlateStatus(plate: string): Promise<PlateStatus> {
+    const validation = validatePlateCandidate(plate);
+    if (!validation.valid) {
+      console.error(`Invalid plate ${validation.plate || plate}: ${validation.errors.join("; ")}`);
+      return "INVALID";
+    }
+
+    const payload = this.updatePayload(validation.plate);
 
     try {
       const requestHeaders = {
@@ -111,15 +121,20 @@ export class PlateFinder {
       }
 
       const responseText = await body.text();
-      const responseData = JSON.parse(responseText);
-      const plateStatus = responseData.code || "UNKNOWN";
+      const responseData = JSON.parse(responseText) as { code?: unknown };
+      const plateStatus = typeof responseData.code === "string" ? responseData.code : "UNKNOWN";
 
       if (plateStatus === "AVAILABLE") {
-        console.log(`${plate.toUpperCase()} is AVAILABLE`);
-        this.availablePlates.push(plate.toUpperCase());
+        console.log(`${validation.plate} is AVAILABLE`);
+        this.availablePlates.push(validation.plate);
+        return "AVAILABLE";
       }
 
-      return plateStatus;
+      if (plateStatus === "VALIDATION") {
+        return "INVALID";
+      }
+
+      return "UNAVAILABLE";
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error(`Error checking plate ${plate}: ${errorMessage}`);
