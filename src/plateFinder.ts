@@ -65,7 +65,7 @@ export class PlateFinder {
       await body.text();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to initialize session: ${errorMessage}`);
+      throw new Error(`Failed to initialize session: ${errorMessage}`, { cause: error });
     }
     if (!this.sessionId) {
       throw new Error(`Failed to obtain session ID!`);

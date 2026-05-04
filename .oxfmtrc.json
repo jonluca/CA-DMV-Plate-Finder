@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 140,
+  "arrowParens": "always",
+  "semi": true,
+  "tabWidth": 2,
+  "trailingComma": "all",
+  "sortTailwindcss": true,
+  "sortPackageJson": false,
+  "ignorePatterns": [".next/**", "node_modules/**", "next-env.d.ts", "tsconfig.tsbuildinfo", "bun.lock"]
+}

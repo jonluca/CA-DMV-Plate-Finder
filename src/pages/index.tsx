@@ -190,17 +190,17 @@ export default function Home() {
         <meta name="theme-color" content="#003d7a" />
       </Head>
       <main className="min-h-screen bg-gradient-to-b from-gray-900 to-black text-white">
-        <div className="container mx-auto px-4 py-8 max-w-7xl">
-          <h1 className="text-4xl font-bold mb-8 text-center">
+        <div className="container mx-auto max-w-7xl px-4 py-8">
+          <h1 className="mb-8 text-center text-4xl font-bold">
             California DMV <span className="text-blue-400">Plate Checker</span>
           </h1>
 
-          <div className="text-center mb-6">
+          <div className="mb-6 text-center">
             <a
               href="https://blog.jonlu.ca/posts/ca-plate-checker"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-blue-400 hover:text-blue-300 transition-colors text-sm"
+              className="inline-flex items-center gap-2 text-sm text-blue-400 transition-colors hover:text-blue-300"
             >
               <span>📖</span>
               <span>Read the blog post about how this works</span>
@@ -208,15 +208,15 @@ export default function Home() {
             </a>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div className="lg:col-span-1 space-y-6">
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h2 className="text-xl font-semibold mb-4">Enter Plates to Check</h2>
+          <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <div className="space-y-6 lg:col-span-1">
+              <div className="rounded-lg bg-gray-800 p-6">
+                <h2 className="mb-4 text-xl font-semibold">Enter Plates to Check</h2>
                 <textarea
                   value={inputText}
                   onChange={handleInputChange}
                   placeholder="Enter plates separated by spaces, commas, or new lines&#10;Example: ABC123 XYZ789 PLATE1"
-                  className="w-full h-40 p-4 bg-gray-700 text-white rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="h-40 w-full resize-none rounded-lg bg-gray-700 p-4 text-white focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   disabled={isChecking}
                 />
                 <div className="mt-4 text-sm text-gray-400">Detected plates: {parsePlates(inputText).length}</div>
@@ -232,13 +232,13 @@ export default function Home() {
                     <button
                       onClick={handleCheckPlates}
                       disabled={parsePlates(inputText).length === 0}
-                      className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg font-semibold transition-colors"
+                      className="flex-1 rounded-lg bg-blue-600 px-6 py-3 font-semibold transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-gray-700"
                     >
                       Check Plates
                     </button>
                     <button
                       onClick={handleClear}
-                      className="py-3 px-6 bg-gray-700 hover:bg-gray-600 rounded-lg font-semibold transition-colors"
+                      className="rounded-lg bg-gray-700 px-6 py-3 font-semibold transition-colors hover:bg-gray-600"
                     >
                       Clear
                     </button>
@@ -246,15 +246,15 @@ export default function Home() {
                 ) : (
                   <button
                     onClick={handleStop}
-                    className="flex-1 py-3 px-6 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition-colors"
+                    className="flex-1 rounded-lg bg-red-600 px-6 py-3 font-semibold transition-colors hover:bg-red-700"
                   >
                     Stop Checking
                   </button>
                 )}
               </div>
 
-              <div className="bg-gray-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">Statistics</h3>
+              <div className="rounded-lg bg-gray-800 p-6">
+                <h3 className="mb-4 text-lg font-semibold">Statistics</h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-400">Total Checked:</span>
@@ -284,8 +284,8 @@ export default function Home() {
               </div>
 
               {systemMessages.length > 0 && (
-                <div className="bg-gray-800 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold mb-2 text-gray-400">System Status</h3>
+                <div className="rounded-lg bg-gray-800 p-4">
+                  <h3 className="mb-2 text-sm font-semibold text-gray-400">System Status</h3>
                   <div className="space-y-1 text-xs text-gray-500">
                     {systemMessages.slice(-3).map((msg) => (
                       <div key={`${msg.timestamp.toISOString()}-${msg.error ?? "system"}`}>→ {msg.error}</div>
@@ -295,14 +295,14 @@ export default function Home() {
               )}
             </div>
 
-            <div className="lg:col-span-2 space-y-6">
-              <div className="bg-gray-800 rounded-lg p-6">
-                <div className="flex justify-between items-center mb-4">
+            <div className="space-y-6 lg:col-span-2">
+              <div className="rounded-lg bg-gray-800 p-6">
+                <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-xl font-semibold">Results</h2>
-                  <div className="flex gap-2 flex-wrap">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setFilter("all")}
-                      className={`px-3 py-1 rounded text-sm transition-colors ${
+                      className={`rounded px-3 py-1 text-sm transition-colors ${
                         filter === "all" ? "bg-blue-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                       }`}
                     >
@@ -310,7 +310,7 @@ export default function Home() {
                     </button>
                     <button
                       onClick={() => setFilter("available")}
-                      className={`px-3 py-1 rounded text-sm transition-colors ${
+                      className={`rounded px-3 py-1 text-sm transition-colors ${
                         filter === "available" ? "bg-green-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                       }`}
                     >
@@ -318,7 +318,7 @@ export default function Home() {
                     </button>
                     <button
                       onClick={() => setFilter("unavailable")}
-                      className={`px-3 py-1 rounded text-sm transition-colors ${
+                      className={`rounded px-3 py-1 text-sm transition-colors ${
                         filter === "unavailable" ? "bg-red-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                       }`}
                     >
@@ -326,7 +326,7 @@ export default function Home() {
                     </button>
                     <button
                       onClick={() => setFilter("invalid")}
-                      className={`px-3 py-1 rounded text-sm transition-colors ${
+                      className={`rounded px-3 py-1 text-sm transition-colors ${
                         filter === "invalid" ? "bg-orange-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                       }`}
                     >
@@ -334,7 +334,7 @@ export default function Home() {
                     </button>
                     <button
                       onClick={() => setFilter("error")}
-                      className={`px-3 py-1 rounded text-sm transition-colors ${
+                      className={`rounded px-3 py-1 text-sm transition-colors ${
                         filter === "error" ? "bg-yellow-600 text-white" : "bg-gray-700 text-gray-300 hover:bg-gray-600"
                       }`}
                     >
@@ -343,7 +343,7 @@ export default function Home() {
                     {filteredAndSortedResults.length > 0 && (
                       <button
                         onClick={downloadCSV}
-                        className="px-3 py-1 rounded text-sm bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+                        className="rounded bg-gray-700 px-3 py-1 text-sm text-gray-300 transition-colors hover:bg-gray-600"
                       >
                         📥 Download CSV
                       </button>
@@ -351,9 +351,9 @@ export default function Home() {
                   </div>
                 </div>
 
-                <div className="h-[600px] overflow-auto bg-gray-900 rounded-lg">
+                <div className="h-[600px] overflow-auto rounded-lg bg-gray-900">
                   {filteredAndSortedResults.length === 0 ? (
-                    <div className="text-gray-500 text-center py-8">
+                    <div className="py-8 text-center text-gray-500">
                       {plateResults.length === 0
                         ? "No results yet. Enter plates and click 'Check Plates' to begin."
                         : filter === "all"
@@ -362,10 +362,10 @@ export default function Home() {
                     </div>
                   ) : (
                     <table className="w-full">
-                      <thead className="sticky top-0 bg-gray-800 border-b border-gray-700">
+                      <thead className="sticky top-0 border-b border-gray-700 bg-gray-800">
                         <tr>
                           <th
-                            className="px-4 py-3 text-left text-sm font-semibold text-gray-300 cursor-pointer hover:bg-gray-700 transition-colors"
+                            className="cursor-pointer px-4 py-3 text-left text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-700"
                             onClick={() => handleSort("plate")}
                           >
                             <div className="flex items-center gap-2">
@@ -374,7 +374,7 @@ export default function Home() {
                             </div>
                           </th>
                           <th
-                            className="px-4 py-3 text-left text-sm font-semibold text-gray-300 cursor-pointer hover:bg-gray-700 transition-colors"
+                            className="cursor-pointer px-4 py-3 text-left text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-700"
                             onClick={() => handleSort("status")}
                           >
                             <div className="flex items-center gap-2">
@@ -383,7 +383,7 @@ export default function Home() {
                             </div>
                           </th>
                           <th
-                            className="px-4 py-3 text-left text-sm font-semibold text-gray-300 cursor-pointer hover:bg-gray-700 transition-colors"
+                            className="cursor-pointer px-4 py-3 text-left text-sm font-semibold text-gray-300 transition-colors hover:bg-gray-700"
                             onClick={() => handleSort("timestamp")}
                           >
                             <div className="flex items-center gap-2">
@@ -396,12 +396,12 @@ export default function Home() {
                       </thead>
                       <tbody className="divide-y divide-gray-700">
                         {filteredAndSortedResults.map((result) => (
-                          <tr key={result.plate} className="hover:bg-gray-800 transition-colors">
+                          <tr key={result.plate} className="transition-colors hover:bg-gray-800">
                             <td className="px-4 py-3">
                               <span className="font-mono font-bold text-white">{result.plate}</span>
                             </td>
                             <td className="px-4 py-3">
-                              <span className={`inline-block py-1 px-3 rounded text-xs font-semibold ${getStatusColor(result.status)}`}>
+                              <span className={`inline-block rounded px-3 py-1 text-xs font-semibold ${getStatusColor(result.status)}`}>
                                 {result.status}
                               </span>
                             </td>

@@ -108,7 +108,7 @@ export const plateCheckerRouter = createTRPCRouter({
           });
         }
       } catch (error) {
-        yield tracked(String(eventId++), {
+        yield tracked(String(eventId), {
           plate: "SYSTEM",
           status: "ERROR" as const,
           timestamp: new Date(),

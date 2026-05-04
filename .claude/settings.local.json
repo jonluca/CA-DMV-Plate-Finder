@@ -1,12 +1,6 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(bun run:*)",
-      "Bash(bun add:*)",
-      "Bash(bun remove:*)",
-      "WebFetch(domain:trpc.io)",
-      "Bash(node:*)"
-    ],
+    "allow": ["Bash(bun run:*)", "Bash(bun add:*)", "Bash(bun remove:*)", "WebFetch(domain:trpc.io)", "Bash(node:*)"],
     "deny": [],
     "ask": []
   }
