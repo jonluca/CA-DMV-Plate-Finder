@@ -3,9 +3,12 @@ import type { ResponseCreateParamsNonStreaming } from "openai/resources/response
 
 import {
   DEFAULT_OPENAI_MODEL,
+  extractPlateCandidatesFromPartialJson,
   extractResponseOutputText,
   generatePlateCandidatesFromPrompt,
+  generatePlateCandidatesFromPromptStream,
   MAX_GENERATED_PLATES,
+  type OpenAIResponseStreamer,
   type OpenAIResponseParser,
   normalizeGeneratedPlates,
 } from "./platePromptGenerator.js";
@@ -27,6 +30,7 @@ assert.equal(
   }),
   '{"plates":["WAVE1","COAST"]}',
 );
+assert.deepEqual(extractPlateCandidatesFromPartialJson('{"plates":["SURFA1","SURFA2",'), ["SURFA1", "SURFA2"]);
 
 const normalized = normalizeGeneratedPlates([" abc123 ", "ABC123", "go car", "A0", "123ABC"]);
 assert.deepEqual(normalized.plates, ["ABC123", "GO*CAR"]);
@@ -142,3 +146,48 @@ await assert.rejects(
     }),
   /OPENAI_API_KEY/,
 );
+
+const responseStreamer: OpenAIResponseStreamer = () => ({
+  async *[Symbol.asyncIterator]() {
+    yield {
+      type: "response.output_text.delta",
+      delta: '{"plates":["SURFA1","SURFA2",',
+    } as never;
+    yield {
+      type: "response.output_text.delta",
+      delta: '"SURFA3"]}',
+    } as never;
+  },
+  async finalResponse() {
+    return {
+      output_parsed: { plates: generatedPlateFixtures },
+      output_text: JSON.stringify({ plates: generatedPlateFixtures }),
+      output: [],
+      status: "completed",
+      incomplete_details: null,
+      error: null,
+    };
+  },
+});
+
+const streamedEvents = [];
+for await (const event of generatePlateCandidatesFromPromptStream({
+  prompt: "surf brands",
+  apiKey: "test-key",
+  model: "gpt-5",
+  responseStreamer,
+})) {
+  streamedEvents.push(event);
+}
+
+assert.deepEqual(streamedEvents.slice(0, 3), [
+  { type: "plate", plate: "SURFA1", model: "gpt-5" },
+  { type: "plate", plate: "SURFA2", model: "gpt-5" },
+  { type: "plate", plate: "SURFA3", model: "gpt-5" },
+]);
+assert.deepEqual(streamedEvents.at(-1), {
+  type: "complete",
+  plates: generatedPlateFixtures,
+  rejected: [],
+  model: "gpt-5",
+});

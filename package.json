@@ -6,7 +6,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "bun src/plateRules.test.ts && bun src/plateResultSorting.test.ts && bun src/server/openai/platePromptGenerator.test.ts && bun src/plateFinder.test.ts",
+    "test": "bun src/plateRules.test.ts && bun src/plateResultSorting.test.ts && bun src/server/api/routers/plateChecker.test.ts && bun src/server/openai/platePromptGenerator.test.ts && bun src/plateFinder.test.ts",
     "test:dmv-session": "bun src/testing/checkDmvSession.ts",
     "lint": "oxlint .",
     "lint:fix": "oxlint --fix . && oxfmt --write .",

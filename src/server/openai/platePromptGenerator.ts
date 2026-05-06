@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
-import type { ResponseCreateParamsNonStreaming } from "openai/resources/responses/responses";
+import type { ResponseCreateParamsNonStreaming, ResponseStreamEvent } from "openai/resources/responses/responses";
 import type { ReasoningEffort } from "openai/resources/shared";
 import { z } from "zod";
 
@@ -49,6 +49,10 @@ export interface OpenAIPlateResponsePayload extends OpenAIResponsePayload {
 }
 
 export type OpenAIResponseParser = (params: ResponseCreateParamsNonStreaming) => Promise<OpenAIPlateResponsePayload>;
+export interface OpenAIResponseStream extends AsyncIterable<ResponseStreamEvent> {
+  finalResponse(): Promise<OpenAIPlateResponsePayload>;
+}
+export type OpenAIResponseStreamer = (params: ResponseCreateParamsNonStreaming) => OpenAIResponseStream;
 
 export interface GeneratedPlateResult {
   plates: string[];
@@ -65,6 +69,23 @@ export interface GeneratePlateCandidatesOptions {
   model?: string;
   responseParser?: OpenAIResponseParser;
 }
+
+export interface GeneratePlateCandidatesStreamOptions extends Omit<GeneratePlateCandidatesOptions, "responseParser"> {
+  responseStreamer?: OpenAIResponseStreamer;
+}
+
+export type GeneratedPlateStreamEvent =
+  | {
+      type: "plate";
+      plate: string;
+      model: string;
+    }
+  | {
+      type: "complete";
+      plates: string[];
+      rejected: GeneratedPlateResult["rejected"];
+      model: string;
+    };
 
 export function extractResponseOutputText(payload: OpenAIResponsePayload): string {
   if (typeof payload.output_text === "string") {
@@ -109,6 +130,26 @@ export function normalizeGeneratedPlates(rawPlates: string[]) {
   }
 
   return { plates, rejected };
+}
+
+export function extractPlateCandidatesFromPartialJson(outputText: string): string[] {
+  const platesKeyIndex = outputText.indexOf('"plates"');
+  if (platesKeyIndex < 0) {
+    return [];
+  }
+
+  const candidates: string[] = [];
+  const stringLiteralPattern = /"([A-Z1-9*/ ]{2,7})"/g;
+  stringLiteralPattern.lastIndex = platesKeyIndex;
+
+  for (const match of outputText.matchAll(stringLiteralPattern)) {
+    const candidate = match[1];
+    if (candidate) {
+      candidates.push(candidate);
+    }
+  }
+
+  return candidates;
 }
 
 function buildPlateResponseSchema() {
@@ -168,10 +209,38 @@ function calculateMaxOutputTokens(): number {
   return Math.max(MIN_OPENAI_OUTPUT_TOKENS, MAX_GENERATED_PLATES * OPENAI_OUTPUT_TOKENS_PER_PLATE);
 }
 
+function buildPlateGenerationRequest({
+  prompt,
+  model,
+  reasoningEffort,
+}: {
+  prompt: string;
+  model: string;
+  reasoningEffort: ReasoningEffort | undefined;
+}) {
+  return {
+    model,
+    input: ["Generate the maximum number of unique plate candidates allowed by the response schema.", "User theme:", prompt].join("\n"),
+    instructions: buildInstructions(),
+    max_output_tokens: calculateMaxOutputTokens(),
+    store: false,
+    ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
+    text: {
+      format: zodTextFormat(buildPlateResponseSchema(), "license_plate_candidates"),
+    },
+  } satisfies ResponseCreateParamsNonStreaming;
+}
+
 function createOpenAIResponseParser(apiKey: string): OpenAIResponseParser {
   const client = new OpenAI({ apiKey });
 
   return async (params) => (await client.responses.parse(params)) as OpenAIPlateResponsePayload;
+}
+
+function createOpenAIResponseStreamer(apiKey: string): OpenAIResponseStreamer {
+  const client = new OpenAI({ apiKey });
+
+  return (params) => client.responses.stream({ ...params, stream: true }) as OpenAIResponseStream;
 }
 
 function parsePlateResponse(response: OpenAIPlateResponsePayload): GeneratedPlateResponse {
@@ -207,18 +276,7 @@ export async function generatePlateCandidatesFromPrompt({
   }
 
   const reasoningEffort = getReasoningEffort(model);
-  const requestBody = {
-    model,
-    input: ["Generate the maximum number of unique plate candidates allowed by the response schema.", "User theme:", prompt].join("\n"),
-    instructions: buildInstructions(),
-    max_output_tokens: calculateMaxOutputTokens(),
-    store: false,
-    ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
-    text: {
-      format: zodTextFormat(buildPlateResponseSchema(), "license_plate_candidates"),
-    },
-  } satisfies ResponseCreateParamsNonStreaming;
-
+  const requestBody = buildPlateGenerationRequest({ prompt, model, reasoningEffort });
   const parseResponse = responseParser ?? createOpenAIResponseParser(apiKey);
   const parsedOutput = parsePlateResponse(await parseResponse(requestBody));
   const { plates, rejected } = normalizeGeneratedPlates(parsedOutput.plates);
@@ -228,6 +286,60 @@ export async function generatePlateCandidatesFromPrompt({
   }
 
   return {
+    plates,
+    rejected,
+    model,
+  };
+}
+
+export async function* generatePlateCandidatesFromPromptStream({
+  prompt,
+  apiKey = process.env.OPENAI_API_KEY,
+  model = process.env.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL,
+  responseStreamer,
+}: GeneratePlateCandidatesStreamOptions): AsyncGenerator<GeneratedPlateStreamEvent> {
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is required to generate plate candidates.");
+  }
+
+  const reasoningEffort = getReasoningEffort(model);
+  const requestBody = buildPlateGenerationRequest({ prompt, model, reasoningEffort });
+  const streamResponse = responseStreamer ?? createOpenAIResponseStreamer(apiKey);
+  const stream = streamResponse(requestBody);
+  const streamedPlates = new Set<string>();
+  let outputText = "";
+
+  for await (const event of stream) {
+    if (event.type !== "response.output_text.delta") {
+      continue;
+    }
+
+    outputText += event.delta;
+    const { plates } = normalizeGeneratedPlates(extractPlateCandidatesFromPartialJson(outputText));
+
+    for (const plate of plates) {
+      if (streamedPlates.has(plate)) {
+        continue;
+      }
+
+      streamedPlates.add(plate);
+      yield {
+        type: "plate",
+        plate,
+        model,
+      };
+    }
+  }
+
+  const parsedOutput = parsePlateResponse(await stream.finalResponse());
+  const { plates, rejected } = normalizeGeneratedPlates(parsedOutput.plates);
+
+  if (plates.length === 0) {
+    throw new Error("OpenAI did not return any valid California plate candidates.");
+  }
+
+  yield {
+    type: "complete",
     plates,
     rejected,
     model,

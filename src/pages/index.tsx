@@ -1,13 +1,13 @@
 import { skipToken } from "@tanstack/react-query";
 import Head from "next/head";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   sortPlateResults,
   type PlateResultSortDirection as SortDirection,
   type PlateResultSortField as SortField,
   type PlateResultStatus,
 } from "~/plateResultSorting";
-import { formatPlateForDisplay, parsePlateCandidates } from "~/plateRules";
+import { formatPlateForDisplay, parsePlateCandidates, uniquePlateCandidates } from "~/plateRules";
 import { api } from "~/utils/api";
 
 interface PlateResult {
@@ -19,7 +19,6 @@ interface PlateResult {
 }
 
 type FilterType = "all" | "available" | "unavailable" | "checking" | "invalid" | "error";
-type GeneratedPlateApplyMode = "append" | "replace";
 
 interface FilterOption {
   id: FilterType;
@@ -34,19 +33,39 @@ interface StatItem {
   className: string;
 }
 
-const getStatusColor = (status: PlateResult["status"]) => {
-  switch (status) {
-    case "AVAILABLE":
-      return "border-[#8bd8a5] bg-[#e9f9ee] text-[#12642d]";
-    case "UNAVAILABLE":
-      return "border-[#f5aaa5] bg-[#fff0ef] text-[#9d241c]";
-    case "INVALID":
-      return "border-[#f0c36a] bg-[#fff7df] text-[#785300]";
-    case "ERROR":
-      return "border-[#f1ca6d] bg-[#fff4d6] text-[#765100]";
-    case "CHECKING":
-      return "border-[#90bee8] bg-[#e8f3ff] text-[#0a56a3]";
+const statusStyles: Record<
+  PlateResultStatus,
+  {
+    badgeClassName: string;
+    dotClassName: string;
+    rowClassName: string;
   }
+> = {
+  AVAILABLE: {
+    badgeClassName: "border-[#8bd8a5] bg-[#e8f8ee] text-[#12642d]",
+    dotClassName: "bg-[#2f9e53]",
+    rowClassName: "border-l-[#2f9e53]",
+  },
+  UNAVAILABLE: {
+    badgeClassName: "border-[#f1a09a] bg-[#fff0ee] text-[#9d241c]",
+    dotClassName: "bg-[#d6453d]",
+    rowClassName: "border-l-[#d6453d]",
+  },
+  INVALID: {
+    badgeClassName: "border-[#efc86b] bg-[#fff7df] text-[#785300]",
+    dotClassName: "bg-[#d89a13]",
+    rowClassName: "border-l-[#d89a13]",
+  },
+  ERROR: {
+    badgeClassName: "border-[#efc86b] bg-[#fff4d6] text-[#765100]",
+    dotClassName: "bg-[#d89a13]",
+    rowClassName: "border-l-[#d89a13]",
+  },
+  CHECKING: {
+    badgeClassName: "border-[#8abde8] bg-[#e8f3ff] text-[#0a56a3]",
+    dotClassName: "bg-[#0a6fbf]",
+    rowClassName: "border-l-[#0a6fbf]",
+  },
 };
 
 const getSortLabel = (field: SortField, sortField: SortField, sortDirection: SortDirection) => {
@@ -55,12 +74,44 @@ const getSortLabel = (field: SortField, sortField: SortField, sortDirection: Sor
 
 const formatPlateListForInput = (plateList: string[]) => plateList.map(formatPlateForDisplay).join("\n");
 
+function MiniPlate({ plate }: { plate: string }) {
+  return (
+    <span className="inline-flex min-w-24 justify-center rounded-md border border-[#b5c2d2] bg-[#fbfcfe] px-3 py-1.5 font-mono text-sm font-black tracking-[0.12em] whitespace-pre text-[#101828] shadow-[inset_0_-2px_0_rgba(10,86,163,0.08)]">
+      {formatPlateForDisplay(plate)}
+    </span>
+  );
+}
+
+function PanelHeader({ kicker, title, description, action }: { kicker: string; title: string; description?: string; action?: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <p className="text-xs font-bold tracking-[0.16em] text-[#0a56a3] uppercase">{kicker}</p>
+        <h2 className="mt-1 text-lg font-bold text-[#101828]">{title}</h2>
+        {description && <p className="mt-1 text-sm leading-6 text-[#667587]">{description}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
 function StatCard({ stat }: { stat: StatItem }) {
   return (
-    <div className="rounded-lg border border-[#d8e0ea] bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold tracking-[0.12em] text-[#6a7787] uppercase">{stat.label}</p>
-      <p className={`mt-2 text-3xl font-bold ${stat.className}`}>{stat.value}</p>
+    <div className="rounded-lg border border-[#d9e2ec] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+      <p className="text-[11px] font-bold tracking-[0.12em] text-[#6a7787] uppercase">{stat.label}</p>
+      <p className={`mt-2 text-2xl font-black tabular-nums ${stat.className}`}>{stat.value}</p>
     </div>
+  );
+}
+
+function StatusBadge({ status }: { status: PlateResult["status"] }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${statusStyles[status].badgeClassName}`}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full ${statusStyles[status].dotClassName}`} aria-hidden="true" />
+      {status}
+    </span>
   );
 }
 
@@ -69,11 +120,11 @@ function FilterButton({ option, isActive, onClick }: { option: FilterOption; isA
     <button
       type="button"
       onClick={onClick}
-      className={`rounded-full border px-3 py-1.5 text-sm font-semibold transition focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none ${
-        isActive ? option.activeClassName : "border-[#d8e0ea] bg-white text-[#526172] hover:border-[#aab6c4] hover:text-[#172033]"
+      className={`rounded-full border px-3 py-1.5 text-sm font-bold transition focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none ${
+        isActive ? option.activeClassName : "border-[#d8e0ea] bg-white text-[#526172] hover:border-[#9aaabd] hover:text-[#172033]"
       }`}
     >
-      {option.label} ({option.count})
+      {option.label} <span className="tabular-nums">{option.count}</span>
     </button>
   );
 }
@@ -95,11 +146,11 @@ function SortableHeader({
     <th className="px-5 py-3 text-left">
       <button
         type="button"
-        className="flex items-center gap-2 text-xs font-bold tracking-[0.12em] text-[#526172] uppercase transition hover:text-[#0a56a3]"
+        className="flex items-center gap-2 text-xs font-black tracking-[0.12em] text-[#526172] uppercase transition hover:text-[#0a56a3]"
         onClick={() => onSort(field)}
       >
         {label}
-        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] text-[#7a8796]">
+        <span className="rounded-full border border-[#d8e0ea] bg-white px-2 py-0.5 text-[10px] font-bold tracking-normal text-[#7a8796]">
           {getSortLabel(field, sortField, sortDirection)}
         </span>
       </button>
@@ -107,21 +158,19 @@ function SortableHeader({
   );
 }
 
-function StatusBadge({ status }: { status: PlateResult["status"] }) {
-  return <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold ${getStatusColor(status)}`}>{status}</span>;
-}
-
-function EmptyResults({ hasResults }: { hasResults: boolean }) {
+function EmptyResults({ hasResults, hasActiveFilter }: { hasResults: boolean; hasActiveFilter: boolean }) {
   return (
-    <div className="flex min-h-[440px] flex-col items-center justify-center px-6 text-center">
-      <div className="rounded-lg border border-dashed border-[#b8c8d9] bg-[#f8fbff] px-5 py-3 font-mono text-lg font-bold text-[#0a56a3]">
-        ABC123
+    <div className="flex min-h-[430px] flex-col items-center justify-center px-6 text-center">
+      <div className="rounded-lg border border-dashed border-[#9fb1c5] bg-[#f8fbff] px-5 py-3 font-mono text-lg font-black tracking-[0.12em] text-[#0a56a3]">
+        GOLDN8
       </div>
-      <h3 className="mt-5 text-lg font-semibold text-[#101828]">{hasResults ? "No results match this filter" : "No checks yet"}</h3>
+      <h3 className="mt-5 text-lg font-bold text-[#101828]">
+        {hasResults ? "No results match these controls" : "Ready for the first check"}
+      </h3>
       <p className="mt-2 max-w-md text-sm leading-6 text-[#667587]">
-        {hasResults
-          ? "Try a different status filter or download the currently visible results."
-          : "Paste plate candidates on the left and start a check to stream availability results here."}
+        {hasResults && hasActiveFilter
+          ? "Clear the search or switch status filters to bring hidden plate checks back into view."
+          : "Paste plate candidates or generate ideas, then start a run to stream DMV availability results here."}
       </p>
     </div>
   );
@@ -139,28 +188,26 @@ function ResultsTable({
   onSort: (field: SortField) => void;
 }) {
   return (
-    <table className="w-full min-w-[760px]">
+    <table className="w-full min-w-[780px]">
       <thead className="sticky top-0 z-10 border-b border-[#d8e0ea] bg-[#f7f9fc]">
         <tr>
           <SortableHeader field="plate" label="Plate" sortField={sortField} sortDirection={sortDirection} onSort={onSort} />
           <SortableHeader field="status" label="Status" sortField={sortField} sortDirection={sortDirection} onSort={onSort} />
           <SortableHeader field="timestamp" label="Time checked" sortField={sortField} sortDirection={sortDirection} onSort={onSort} />
-          <th className="px-5 py-3 text-left text-xs font-bold tracking-[0.12em] text-[#526172] uppercase">Error</th>
+          <th className="px-5 py-3 text-left text-xs font-black tracking-[0.12em] text-[#526172] uppercase">Run note</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-[#edf1f5]">
         {results.map((item) => (
-          <tr key={item.plate} className="transition hover:bg-[#f8fbff]">
+          <tr key={item.plate} className={`border-l-4 ${statusStyles[item.status].rowClassName} transition hover:bg-[#f8fbff]`}>
             <td className="px-5 py-4 whitespace-nowrap">
-              <span className="rounded border border-[#d8e0ea] bg-[#fbfcfe] px-3 py-1 font-mono text-sm font-bold tracking-[0.08em] whitespace-pre text-[#101828]">
-                {formatPlateForDisplay(item.plate)}
-              </span>
+              <MiniPlate plate={item.plate} />
             </td>
             <td className="px-5 py-4 whitespace-nowrap">
               <StatusBadge status={item.status} />
             </td>
-            <td className="px-5 py-4 text-sm font-medium whitespace-nowrap text-[#526172]">{item.timestamp.toLocaleTimeString()}</td>
-            <td className="px-5 py-4 text-sm text-[#667587]">{item.error || "-"}</td>
+            <td className="px-5 py-4 text-sm font-semibold whitespace-nowrap text-[#526172]">{item.timestamp.toLocaleTimeString()}</td>
+            <td className="px-5 py-4 text-sm text-[#667587]">{item.error || "Ready"}</td>
           </tr>
         ))}
       </tbody>
@@ -168,32 +215,48 @@ function ResultsTable({
   );
 }
 
+function ResultsCards({ results }: { results: PlateResult[] }) {
+  return (
+    <div className="space-y-3 p-4 md:hidden">
+      {results.map((item) => (
+        <article
+          key={item.plate}
+          className={`rounded-lg border border-l-4 border-[#d8e0ea] bg-white p-4 ${statusStyles[item.status].rowClassName}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <MiniPlate plate={item.plate} />
+            <StatusBadge status={item.status} />
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-4 text-sm text-[#526172]">
+            <span className="font-semibold">Checked {item.timestamp.toLocaleTimeString()}</span>
+            <span className="text-right">{item.error || "Ready"}</span>
+          </div>
+        </article>
+      ))}
+    </div>
+  );
+}
+
 export default function Home() {
   const [inputText, setInputText] = useState("");
   const [generationPrompt, setGenerationPrompt] = useState("");
+  const [generationRequest, setGenerationRequest] = useState<{ prompt: string; requestId: number } | null>(null);
   const [generatedPlates, setGeneratedPlates] = useState<string[]>([]);
   const [generationError, setGenerationError] = useState("");
+  const [rejectedGenerationCount, setRejectedGenerationCount] = useState(0);
+  const [generatedModel, setGeneratedModel] = useState("gpt-5.5");
   const [plates, setPlates] = useState<string[]>([]);
   const [results, setResults] = useState<PlateResult[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
   const [sortField, setSortField] = useState<SortField>("status");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+  const [resultQuery, setResultQuery] = useState("");
   const resultsEndRef = useRef<HTMLDivElement>(null);
+  const activePlatesRef = useRef<string[]>([]);
+  const queuedPlatesRef = useRef<string[]>([]);
+  const knownPlateSetRef = useRef<Set<string>>(new Set());
 
   const parsedPlates = useMemo(() => parsePlateCandidates(inputText), [inputText]);
-
-  const generatePlates = api.plateGenerator.generate.useMutation({
-    onMutate: () => {
-      setGenerationError("");
-      setGeneratedPlates([]);
-    },
-    onSuccess: (data) => {
-      setGeneratedPlates(data.plates);
-    },
-    onError: (err) => {
-      setGenerationError(err.message);
-    },
-  });
 
   useEffect(() => {
     resultsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -217,12 +280,72 @@ export default function Home() {
     },
   });
 
-  const isChecking = result.status === "pending" || result.status === "connecting";
-  const isGenerating = generatePlates.status === "pending";
-  const rejectedGenerationCount = generatePlates.data?.rejected.length ?? 0;
-  const generatedModel = generatePlates.data?.model ?? "gpt-5.5";
+  api.plateGenerator.generateStream.useSubscription(generationRequest ?? skipToken, {
+    onData: (trackedData) => {
+      const event = trackedData.data;
+      setGeneratedModel(event.model);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      if (event.type === "plate") {
+        setGeneratedPlates((prev) => uniquePlateCandidates([...prev, event.plate]));
+        queuePlateCandidates([event.plate]);
+        return;
+      }
+
+      setGeneratedPlates(event.plates);
+      setRejectedGenerationCount(event.rejected.length);
+      queuePlateCandidates(event.plates);
+      setGenerationRequest(null);
+    },
+    onError: (err) => {
+      setGenerationError(err.message);
+      setGenerationRequest(null);
+    },
+  });
+
+  const { plateResults, systemMessages } = useMemo(
+    () => ({
+      plateResults: results.filter((r) => r.plate !== "SYSTEM"),
+      systemMessages: results.filter((r) => r.plate === "SYSTEM"),
+    }),
+    [results],
+  );
+
+  useEffect(() => {
+    knownPlateSetRef.current = new Set(plateResults.map((plateResult) => plateResult.plate));
+  }, [plateResults]);
+
+  const activeBatchComplete = useMemo(() => {
+    if (plates.length === 0) {
+      return false;
+    }
+
+    return plates.every((plate) => {
+      const plateResult = plateResults.find((resultItem) => resultItem.plate === plate);
+      return plateResult && plateResult.status !== "CHECKING";
+    });
+  }, [plateResults, plates]);
+
+  useEffect(() => {
+    if (!activeBatchComplete) {
+      return;
+    }
+
+    const nextBatch = queuedPlatesRef.current;
+    if (nextBatch.length > 0) {
+      queuedPlatesRef.current = [];
+      activePlatesRef.current = nextBatch;
+      setPlates(nextBatch);
+      return;
+    }
+
+    activePlatesRef.current = [];
+    setPlates([]);
+  }, [activeBatchComplete]);
+
+  const isChecking = result.status === "pending" || result.status === "connecting";
+  const isGenerating = generationRequest !== null;
+
+  const handleInputChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setInputText(formatPlateForDisplay(e.target.value));
   };
 
@@ -230,16 +353,51 @@ export default function Home() {
     setInputText(formatPlateListForInput(parsedPlates));
   };
 
+  function queuePlateCandidates(candidates: Iterable<string>) {
+    const normalizedCandidates = uniquePlateCandidates(candidates);
+    if (normalizedCandidates.length === 0) {
+      return;
+    }
+
+    setInputText((currentInput) => formatPlateListForInput(uniquePlateCandidates([...parsePlateCandidates(currentInput), ...normalizedCandidates])));
+
+    const platesToCheck = normalizedCandidates.filter((plate) => !knownPlateSetRef.current.has(plate));
+    if (platesToCheck.length === 0) {
+      return;
+    }
+
+    const queuedAt = new Date();
+    for (const plate of platesToCheck) {
+      knownPlateSetRef.current.add(plate);
+    }
+
+    setResults((currentResults) => [
+      ...currentResults,
+      ...platesToCheck.map((plate) => ({
+        plate,
+        status: "CHECKING" as const,
+        timestamp: queuedAt,
+        error: "Queued",
+      })),
+    ]);
+
+    if (activePlatesRef.current.length === 0) {
+      activePlatesRef.current = platesToCheck;
+      setPlates(platesToCheck);
+      return;
+    }
+
+    const nextQueuedPlates = uniquePlateCandidates([...queuedPlatesRef.current, ...platesToCheck]);
+    queuedPlatesRef.current = nextQueuedPlates;
+  }
+
   const handleCheckPlates = () => {
     if (parsedPlates.length === 0) {
       alert("Please enter at least one plate candidate");
       return;
     }
 
-    setInputText(formatPlateListForInput(parsedPlates));
-    setPlates(parsedPlates);
-    setResults([]);
-    setFilter("all");
+    queuePlateCandidates(parsedPlates);
   };
 
   const handleGeneratePlates = () => {
@@ -250,38 +408,43 @@ export default function Home() {
       return;
     }
 
-    generatePlates.mutate({
+    setGenerationError("");
+    setGeneratedPlates([]);
+    setRejectedGenerationCount(0);
+    setGeneratedModel("gpt-5.5");
+    setGenerationRequest({
       prompt,
+      requestId: Date.now(),
     });
-  };
-
-  const applyGeneratedPlates = (mode: GeneratedPlateApplyMode) => {
-    const basePlates = mode === "append" ? parsedPlates : [];
-    const nextPlates = parsePlateCandidates([...basePlates, ...generatedPlates].join("\n"));
-    setInputText(formatPlateListForInput(nextPlates));
   };
 
   const handleStop = () => {
     result.reset();
+    activePlatesRef.current = [];
+    queuedPlatesRef.current = [];
     setPlates([]);
+    setResults((currentResults) =>
+      currentResults.map((item) =>
+        item.status === "CHECKING" ? { ...item, status: "ERROR", error: "Stopped before completion.", timestamp: new Date() } : item,
+      ),
+    );
   };
 
   const handleClear = () => {
+    activePlatesRef.current = [];
+    queuedPlatesRef.current = [];
+    knownPlateSetRef.current = new Set();
     setInputText("");
     setPlates([]);
     setResults([]);
     setGeneratedPlates([]);
     setGenerationError("");
+    setRejectedGenerationCount(0);
+    setGeneratedModel("gpt-5.5");
+    setGenerationRequest(null);
     setFilter("all");
+    setResultQuery("");
   };
-
-  const { plateResults, systemMessages } = useMemo(
-    () => ({
-      plateResults: results.filter((r) => r.plate !== "SYSTEM"),
-      systemMessages: results.filter((r) => r.plate === "SYSTEM"),
-    }),
-    [results],
-  );
 
   const counts = useMemo(
     () => ({
@@ -296,25 +459,33 @@ export default function Home() {
   );
 
   const filteredAndSortedResults = useMemo(() => {
+    const query = resultQuery.trim().toLowerCase();
     const filtered = plateResults.filter((r) => {
-      switch (filter) {
-        case "available":
-          return r.status === "AVAILABLE";
-        case "unavailable":
-          return r.status === "UNAVAILABLE";
-        case "checking":
-          return r.status === "CHECKING";
-        case "invalid":
-          return r.status === "INVALID";
-        case "error":
-          return r.status === "ERROR";
-        default:
-          return true;
+      const matchesStatus =
+        filter === "all" ||
+        (filter === "available" && r.status === "AVAILABLE") ||
+        (filter === "unavailable" && r.status === "UNAVAILABLE") ||
+        (filter === "checking" && r.status === "CHECKING") ||
+        (filter === "invalid" && r.status === "INVALID") ||
+        (filter === "error" && r.status === "ERROR");
+
+      if (!matchesStatus) {
+        return false;
       }
+
+      if (!query) {
+        return true;
+      }
+
+      return (
+        formatPlateForDisplay(r.plate).toLowerCase().includes(query) ||
+        r.status.toLowerCase().includes(query) ||
+        (r.error ?? "").toLowerCase().includes(query)
+      );
     });
 
     return sortPlateResults(filtered, sortField, sortDirection);
-  }, [plateResults, filter, sortField, sortDirection]);
+  }, [plateResults, filter, resultQuery, sortField, sortDirection]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -344,9 +515,12 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
-  const totalTargets = plates.length || plateResults.length;
+  const hasActiveChecks = counts.checking > 0 || isChecking;
+  const totalTargets = plateResults.length;
   const completionPercent = totalTargets ? Math.min(100, Math.round((counts.totalChecked / totalTargets) * 100)) : 0;
-  const runStatus = isChecking ? "Checking now" : plateResults.length ? "Results ready" : "Ready";
+  const runStatus = isGenerating && hasActiveChecks ? "Generating + checking" : isGenerating ? "Generating ideas" : hasActiveChecks ? "Checking DMV" : plateResults.length ? "Results ready" : "Ready";
+  const previewPlate = parsedPlates[0] ?? generatedPlates[0] ?? "SUNSET";
+  const hasActiveResultControls = filter !== "all" || resultQuery.trim().length > 0;
 
   const filterOptions: FilterOption[] = [
     {
@@ -386,7 +560,7 @@ export default function Home() {
       activeClassName: "border-[#b9810a] bg-[#fff1c4] text-[#6a4a00]",
     },
   ];
-  const visibleFilterOptions = filterOptions.filter((option) => option.count !== 0);
+  const visibleFilterOptions = filterOptions.filter((option) => option.count !== 0 || option.id === "all");
 
   const stats: StatItem[] = [
     { label: "Checked", value: counts.totalChecked, className: "text-[#0a56a3]" },
@@ -408,79 +582,89 @@ export default function Home() {
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <link rel="manifest" href="/site.webmanifest" />
-        <meta name="theme-color" content="#eef3f8" />
+        <meta name="theme-color" content="#f3f6fa" />
       </Head>
-      <main className="min-h-screen bg-[#eef3f8] text-[#172033]">
-        <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
-          <header className="mb-6 border-b border-[#d8e0ea] pb-6">
-            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-3xl">
-                <p className="text-xs font-semibold tracking-[0.18em] text-[#0a56a3] uppercase">California DMV availability search</p>
-                <h1 className="mt-3 text-3xl font-bold tracking-tight text-[#101828] sm:text-5xl">CA DMV Plate Finder</h1>
-                <p className="mt-3 max-w-2xl text-base leading-7 text-[#526172]">
-                  Paste plate candidates, stream availability checks, and keep the promising hits visible while the scan runs.
-                </p>
+      <main className="min-h-screen bg-[#f3f6fa] text-[#172033]">
+        <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-4 py-5 sm:px-6 lg:px-8">
+          <header className="rounded-lg border border-[#d8e0ea] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] sm:p-5">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex items-start gap-4">
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[#0a56a3] bg-[#0a56a3] text-sm font-black tracking-[0.14em] text-white">
+                  CA
+                </div>
+                <div>
+                  <p className="text-xs font-bold tracking-[0.18em] text-[#0a56a3] uppercase">California DMV availability workspace</p>
+                  <h1 className="mt-1 text-3xl font-black tracking-tight text-[#101828] sm:text-4xl">CA DMV Plate Finder</h1>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[#526172] sm:text-base">
+                    Generate plate ideas, stream availability checks, and keep export-ready results organized while a run is active.
+                  </p>
+                </div>
               </div>
 
-              <a
-                href="https://blog.jonlu.ca/posts/ca-plate-checker"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex w-fit items-center rounded-full border border-[#b8c8d9] bg-white px-4 py-2 text-sm font-semibold text-[#0a56a3] shadow-sm transition hover:border-[#0a56a3] hover:bg-[#f8fbff] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/15 focus-visible:outline-none"
-              >
-                How it works{" "}
-                <span className="ml-2" aria-hidden="true">
-                  -&gt;
-                </span>
-              </a>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="rounded-lg border border-[#d8e0ea] bg-[#f8fbff] px-4 py-3">
+                  <p className="text-[11px] font-bold tracking-[0.12em] text-[#6a7787] uppercase">Current run</p>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className={`h-2 w-2 rounded-full ${hasActiveChecks ? "bg-[#0a6fbf]" : "bg-[#2f9e53]"}`} aria-hidden="true" />
+                    <span className="text-sm font-black text-[#101828]">{runStatus}</span>
+                  </div>
+                </div>
+                <a
+                  href="https://blog.jonlu.ca/posts/ca-plate-checker"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-lg border border-[#b8c8d9] bg-white px-4 py-3 text-sm font-bold text-[#0a56a3] transition hover:border-[#0a56a3] hover:bg-[#f8fbff] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/15 focus-visible:outline-none"
+                >
+                  How it works{" "}
+                  <span className="ml-2" aria-hidden="true">
+                    -&gt;
+                  </span>
+                </a>
+              </div>
             </div>
           </header>
 
-          <div className="grid flex-1 grid-cols-1 gap-4 xl:grid-cols-[380px_minmax(0,1fr)]">
-            <section className="space-y-4" aria-label="Plate input and run summary">
-              <div className="rounded-lg border border-[#d8e0ea] bg-white p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold tracking-[0.14em] text-[#6a7787] uppercase">Input</p>
-                    <h2 className="mt-1 text-xl font-semibold text-[#101828]">Plate candidates</h2>
-                  </div>
-                  <span className="rounded-full border border-[#d8e0ea] bg-[#f7f9fc] px-3 py-1 text-xs font-semibold text-[#526172]">
-                    {runStatus}
-                  </span>
-                </div>
+          <div className="mt-5 grid flex-1 grid-cols-1 gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
+            <section className="space-y-5" aria-label="Plate input and run summary">
+              <div className="rounded-lg border border-[#d8e0ea] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+                <PanelHeader
+                  kicker="Step 1"
+                  title="Build the candidate list"
+                  description="Paste known ideas or ask the generator for DMV-safe candidates."
+                  action={<MiniPlate plate={previewPlate} />}
+                />
 
-                <label htmlFor="plate-input" className="mt-5 block text-sm font-medium text-[#344054]">
-                  Paste one or many plate ideas
+                <label htmlFor="plate-input" className="mt-5 block text-sm font-bold text-[#344054]">
+                  Plate candidates
                 </label>
                 <textarea
                   id="plate-input"
                   value={inputText}
                   onChange={handleInputChange}
                   onBlur={normalizeInputList}
-                  placeholder={"ABC123\nXYZ789\nPLATE1"}
-                  className="mt-2 min-h-44 w-full resize-y rounded-lg border border-[#c8d2df] bg-[#fbfcfe] p-4 font-mono text-sm text-[#172033] shadow-inner transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6] disabled:text-[#7a8796]"
-                  disabled={isChecking}
+                  placeholder={"SUNSET\nTESLA 1\nSURF/1\nEVRIDE\nGOLDN8"}
+                  className="mt-2 min-h-48 w-full resize-y rounded-lg border border-[#c8d2df] bg-[#fbfcfe] p-4 font-mono text-sm text-[#172033] shadow-inner transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6] disabled:text-[#7a8796]"
+                  disabled={hasActiveChecks}
                 />
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-[#526172]">
                   <span>
-                    Detected <strong className="font-semibold text-[#101828]">{parsedPlates.length}</strong> candidates
+                    <strong className="font-black text-[#101828]">{parsedPlates.length}</strong> candidates detected
                   </span>
-                  <span>2-7 characters</span>
+                  <span className="rounded-full bg-[#eef3f8] px-2.5 py-1 text-xs font-bold">2-7 characters</span>
                 </div>
                 <p className="mt-2 text-xs leading-5 text-[#667587]">
                   Use letters, digits 1-9, spaces for full spaces, and / for half-spaces.
                 </p>
 
-                <div className="mt-5 border-t border-[#e1e7ef] pt-5">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold tracking-[0.14em] text-[#6a7787] uppercase">GPT-5 generator</p>
-                      <h3 className="mt-1 text-base font-semibold text-[#101828]">Generate plate ideas</h3>
-                    </div>
-                  </div>
+                <div className="mt-5 rounded-lg border border-[#d8e0ea] bg-[#f8fbff] p-4">
+                  <PanelHeader
+                    kicker="AI assist"
+                    title="Generate plate ideas"
+                    description="Describe a theme and keep the valid candidates."
+                  />
 
-                  <label htmlFor="plate-generation-prompt" className="mt-4 block text-sm font-medium text-[#344054]">
+                  <label htmlFor="plate-generation-prompt" className="mt-4 block text-sm font-bold text-[#344054]">
                     Prompt
                   </label>
                   <textarea
@@ -488,28 +672,28 @@ export default function Home() {
                     value={generationPrompt}
                     onChange={(event) => setGenerationPrompt(event.target.value)}
                     placeholder="Short beach-themed plates for a vintage Porsche"
-                    className="mt-2 min-h-24 w-full resize-y rounded-lg border border-[#c8d2df] bg-[#fbfcfe] p-3 text-sm text-[#172033] shadow-inner transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6] disabled:text-[#7a8796]"
-                    disabled={isChecking || isGenerating}
+                    className="mt-2 min-h-24 w-full resize-y rounded-lg border border-[#c8d2df] bg-white p-3 text-sm text-[#172033] shadow-inner transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6] disabled:text-[#7a8796]"
+                    disabled={isGenerating}
                   />
 
                   <button
                     type="button"
                     onClick={handleGeneratePlates}
-                    disabled={isChecking || isGenerating || generationPrompt.trim().length < 3}
-                    className="mt-3 w-full rounded-lg border border-[#0a56a3] bg-[#0a56a3] px-4 py-2.5 text-sm font-bold text-white shadow-sm transition hover:bg-[#084987] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/20 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-[#c8d2df] disabled:bg-[#d5dce5] disabled:text-[#7b8795]"
+                    disabled={isGenerating || generationPrompt.trim().length < 3}
+                    className="mt-3 w-full rounded-lg border border-[#0a56a3] bg-[#0a56a3] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084987] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/20 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-[#c8d2df] disabled:bg-[#d5dce5] disabled:text-[#7b8795]"
                   >
                     {isGenerating ? "Generating..." : "Generate ideas"}
                   </button>
 
                   {generationError && (
-                    <div className="mt-3 rounded-lg border border-[#f1ca6d] bg-[#fff4d6] px-3 py-2 text-sm text-[#765100]">
+                    <div className="mt-3 rounded-lg border border-[#f1ca6d] bg-[#fff4d6] px-3 py-2 text-sm font-semibold text-[#765100]">
                       {generationError}
                     </div>
                   )}
 
                   {generatedPlates.length > 0 && (
-                    <div className="mt-4 rounded-lg border border-[#d8e0ea] bg-[#f8fbff] p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold text-[#526172]">
+                    <div className="mt-4 rounded-lg border border-[#d8e0ea] bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[#526172]">
                         <span>
                           {generatedPlates.length} generated with {generatedModel}
                         </span>
@@ -517,51 +701,28 @@ export default function Home() {
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {generatedPlates.map((plate) => (
-                          <span
-                            key={plate}
-                            className="rounded border border-[#b8c8d9] bg-white px-2.5 py-1 font-mono text-xs font-bold tracking-[0.08em] whitespace-pre text-[#101828]"
-                          >
-                            {formatPlateForDisplay(plate)}
-                          </span>
+                          <MiniPlate key={plate} plate={plate} />
                         ))}
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => applyGeneratedPlates("append")}
-                          disabled={isChecking}
-                          className="rounded-lg border border-[#c8d2df] bg-white px-3 py-2 text-xs font-semibold text-[#344054] transition hover:border-[#98a4b3] hover:bg-[#f7f9fc] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6]"
-                        >
-                          Append
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => applyGeneratedPlates("replace")}
-                          disabled={isChecking}
-                          className="rounded-lg border border-[#c8d2df] bg-white px-3 py-2 text-xs font-semibold text-[#344054] transition hover:border-[#98a4b3] hover:bg-[#f7f9fc] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6]"
-                        >
-                          Replace
-                        </button>
                       </div>
                     </div>
                   )}
                 </div>
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  {!isChecking ? (
+                  {!hasActiveChecks ? (
                     <>
                       <button
                         type="button"
                         onClick={handleCheckPlates}
                         disabled={parsedPlates.length === 0}
-                        className="flex-1 rounded-lg bg-[#ffd84d] px-5 py-3 text-sm font-bold text-[#152238] shadow-sm transition hover:bg-[#f4c935] focus-visible:ring-4 focus-visible:ring-[#ffd84d]/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-[#d5dce5] disabled:text-[#7b8795]"
+                        className="flex-1 rounded-lg bg-[#ffd84d] px-5 py-3 text-sm font-black text-[#152238] transition hover:bg-[#f4c935] focus-visible:ring-4 focus-visible:ring-[#ffd84d]/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-[#d5dce5] disabled:text-[#7b8795]"
                       >
                         Check plates
                       </button>
                       <button
                         type="button"
                         onClick={handleClear}
-                        className="rounded-lg border border-[#c8d2df] bg-white px-5 py-3 text-sm font-semibold text-[#344054] transition hover:border-[#98a4b3] hover:bg-[#f7f9fc] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none"
+                        className="rounded-lg border border-[#c8d2df] bg-white px-5 py-3 text-sm font-bold text-[#344054] transition hover:border-[#98a4b3] hover:bg-[#f7f9fc] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none"
                       >
                         Clear
                       </button>
@@ -570,40 +731,40 @@ export default function Home() {
                     <button
                       type="button"
                       onClick={handleStop}
-                      className="flex-1 rounded-lg bg-[#d6453d] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#bf332c] focus-visible:ring-4 focus-visible:ring-[#d6453d]/20 focus-visible:outline-none"
+                      className="flex-1 rounded-lg bg-[#d6453d] px-5 py-3 text-sm font-black text-white transition hover:bg-[#bf332c] focus-visible:ring-4 focus-visible:ring-[#d6453d]/20 focus-visible:outline-none"
                     >
                       Stop checking
                     </button>
                   )}
                 </div>
-
-                {totalTargets > 0 && (
-                  <div className="mt-5 border-t border-[#e1e7ef] pt-4">
-                    <div className="flex items-center justify-between text-xs font-semibold text-[#526172]">
-                      <span>Run progress</span>
-                      <span>
-                        {counts.totalChecked} / {totalTargets}
-                      </span>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#e4ebf3]">
-                      <div
-                        className="h-full rounded-full bg-[#0a56a3] transition-all duration-300"
-                        style={{ width: `${completionPercent}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {stats.map((stat) => (
-                  <StatCard key={stat.label} stat={stat} />
-                ))}
+              <div className="rounded-lg border border-[#d8e0ea] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+                <PanelHeader kicker="Step 2" title="Run progress" description="Track completion and keep the outcome mix visible." />
+                <div className="mt-4">
+                  <div className="flex items-center justify-between text-xs font-bold text-[#526172]">
+                    <span>{totalTargets > 0 ? "Queued checks" : "No queued checks"}</span>
+                    <span className="tabular-nums">
+                      {counts.totalChecked} / {totalTargets}
+                    </span>
+                  </div>
+                  <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-[#e4ebf3]">
+                    <div
+                      className="h-full rounded-full bg-[#0a56a3] transition-all duration-300"
+                      style={{ width: `${completionPercent}%` }}
+                    />
+                  </div>
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  {stats.map((stat) => (
+                    <StatCard key={stat.label} stat={stat} />
+                  ))}
+                </div>
               </div>
 
               {systemMessages.length > 0 && (
-                <div className="rounded-lg border border-[#d8e0ea] bg-white p-4 shadow-sm">
-                  <h3 className="text-sm font-semibold text-[#344054]">System status</h3>
+                <div className="rounded-lg border border-[#d8e0ea] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+                  <h3 className="text-sm font-bold text-[#344054]">System status</h3>
                   <div className="mt-3 space-y-2 text-sm text-[#667587]">
                     {systemMessages.slice(-3).map((msg) => (
                       <div key={`${msg.timestamp.toISOString()}-${msg.error ?? "system"}`} className="border-l-2 border-[#ffd84d] pl-3">
@@ -615,46 +776,66 @@ export default function Home() {
               )}
             </section>
 
-            <section className="min-w-0 rounded-lg border border-[#d8e0ea] bg-white shadow-sm" aria-label="Plate availability results">
-              <div className="flex flex-col gap-4 border-b border-[#e1e7ef] p-5 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.14em] text-[#6a7787] uppercase">Results</p>
-                  <h2 className="mt-1 text-xl font-semibold text-[#101828]">Availability results</h2>
-                  <p className="mt-1 text-sm text-[#667587]">
-                    Showing {filteredAndSortedResults.length} of {plateResults.length} plate checks.
-                  </p>
+            <section
+              className="min-w-0 rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
+              aria-label="Plate availability results"
+            >
+              <div className="border-b border-[#e1e7ef] p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <PanelHeader
+                    kicker="Step 3"
+                    title="Availability results"
+                    description={`Showing ${filteredAndSortedResults.length} of ${plateResults.length} plate checks.`}
+                  />
+
+                  <div className="flex flex-col gap-3 sm:flex-row">
+                    <label htmlFor="result-search" className="sr-only">
+                      Search results
+                    </label>
+                    <input
+                      id="result-search"
+                      value={resultQuery}
+                      onChange={(event) => setResultQuery(event.target.value)}
+                      placeholder="Search plate, status, note"
+                      className="h-10 min-w-0 rounded-lg border border-[#c8d2df] bg-[#fbfcfe] px-3 text-sm font-semibold text-[#172033] transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none sm:min-w-64"
+                    />
+                    {filteredAndSortedResults.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={downloadCSV}
+                        className="inline-flex h-10 items-center justify-center rounded-lg border border-[#c8d2df] bg-[#f7f9fc] px-4 text-sm font-bold text-[#344054] transition hover:border-[#98a4b3] hover:bg-white focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none"
+                      >
+                        Export CSV
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {filteredAndSortedResults.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={downloadCSV}
-                    className="inline-flex w-fit items-center justify-center rounded-lg border border-[#c8d2df] bg-[#f7f9fc] px-4 py-2 text-sm font-semibold text-[#344054] transition hover:border-[#98a4b3] hover:bg-white focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none"
-                  >
-                    Download CSV
-                  </button>
+                {visibleFilterOptions.length > 0 && (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {visibleFilterOptions.map((option) => (
+                      <FilterButton key={option.id} option={option} isActive={filter === option.id} onClick={() => setFilter(option.id)} />
+                    ))}
+                  </div>
                 )}
               </div>
 
-              {visibleFilterOptions.length > 0 && (
-                <div className="flex flex-wrap gap-2 px-5 py-4">
-                  {visibleFilterOptions.map((option) => (
-                    <FilterButton key={option.id} option={option} isActive={filter === option.id} onClick={() => setFilter(option.id)} />
-                  ))}
-                </div>
-              )}
-
-              <div className="border-t border-[#e1e7ef]">
-                <div className="max-h-[620px] min-h-[440px] overflow-auto">
+              <div className="border-t border-[#f2f4f7]">
+                <div className="max-h-[calc(100vh-260px)] min-h-[500px] overflow-auto">
                   {filteredAndSortedResults.length === 0 ? (
-                    <EmptyResults hasResults={plateResults.length > 0} />
+                    <EmptyResults hasResults={plateResults.length > 0} hasActiveFilter={hasActiveResultControls} />
                   ) : (
-                    <ResultsTable
-                      results={filteredAndSortedResults}
-                      sortField={sortField}
-                      sortDirection={sortDirection}
-                      onSort={handleSort}
-                    />
+                    <>
+                      <div className="hidden md:block">
+                        <ResultsTable
+                          results={filteredAndSortedResults}
+                          sortField={sortField}
+                          sortDirection={sortDirection}
+                          onSort={handleSort}
+                        />
+                      </div>
+                      <ResultsCards results={filteredAndSortedResults} />
+                    </>
                   )}
                   <div ref={resultsEndRef} />
                 </div>
