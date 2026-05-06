@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 import {
+  formatPlateForDisplay,
   MAX_PERSONALIZED_PLATE_LENGTH,
   MIN_PERSONALIZED_PLATE_LENGTH,
   parsePlateCandidates,
@@ -29,11 +30,15 @@ assert.equal(MAX_PERSONALIZED_PLATE_LENGTH, 7);
 
 assert.deepEqual(parsePlateCandidates("abc123, abc123\nxy; go/car"), ["ABC123", "XY", "GO/CAR"]);
 assert.deepEqual(parsePlateCandidates("go car\nxy\n"), ["GO*CAR", "XY"]);
+assert.deepEqual(parsePlateCandidates("go  car\nxy\n"), ["GO**CAR", "XY"]);
+assert.equal(formatPlateForDisplay("GO*CAR"), "GO CAR");
+assert.equal(formatPlateForDisplay("GO**CAR"), "GO  CAR");
 
 assertValid(" ca1969 ", "CA1969");
 assertValid("go/car", "GO/CAR");
 assertValid("go*car", "GO*CAR");
 assertValid("go car", "GO*CAR");
+assertValid("go  car", "GO**CAR");
 
 assertInvalid("A", "2-7 characters");
 assertInvalid("ABCDEFGH", "2-7 characters");

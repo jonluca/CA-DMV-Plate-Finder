@@ -1,7 +1,7 @@
 import { skipToken } from "@tanstack/react-query";
 import Head from "next/head";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { parsePlateCandidates } from "~/plateRules";
+import { formatPlateForDisplay, parsePlateCandidates } from "~/plateRules";
 import { api } from "~/utils/api";
 
 interface PlateResult {
@@ -149,8 +149,8 @@ function ResultsTable({
         {results.map((item) => (
           <tr key={item.plate} className="transition hover:bg-[#f8fbff]">
             <td className="px-5 py-4 whitespace-nowrap">
-              <span className="rounded border border-[#d8e0ea] bg-[#fbfcfe] px-3 py-1 font-mono text-sm font-bold tracking-[0.08em] text-[#101828]">
-                {item.plate}
+              <span className="rounded border border-[#d8e0ea] bg-[#fbfcfe] px-3 py-1 font-mono text-sm font-bold tracking-[0.08em] whitespace-pre text-[#101828]">
+                {formatPlateForDisplay(item.plate)}
               </span>
             </td>
             <td className="px-5 py-4 whitespace-nowrap">
@@ -218,10 +218,10 @@ export default function Home() {
   const isChecking = result.status === "pending" || result.status === "connecting";
   const isGenerating = generatePlates.status === "pending";
   const rejectedGenerationCount = generatePlates.data?.rejected.length ?? 0;
-  const generatedModel = generatePlates.data?.model ?? "gpt-5";
+  const generatedModel = generatePlates.data?.model ?? "gpt-5.5";
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInputText(e.target.value);
+    setInputText(formatPlateForDisplay(e.target.value));
   };
 
   const handleCheckPlates = () => {
@@ -252,7 +252,7 @@ export default function Home() {
   const applyGeneratedPlates = (mode: GeneratedPlateApplyMode) => {
     const basePlates = mode === "append" ? parsedPlates : [];
     const nextPlates = parsePlateCandidates([...basePlates, ...generatedPlates].join("\n"));
-    setInputText(nextPlates.join("\n"));
+    setInputText(nextPlates.map(formatPlateForDisplay).join("\n"));
   };
 
   const handleStop = () => {
@@ -339,7 +339,7 @@ export default function Home() {
     const csvContent = [
       ["Plate", "Status", "Timestamp", "Error"].join(","),
       ...filteredAndSortedResults.map((r) =>
-        [r.plate, r.status, r.timestamp.toISOString(), r.error || ""].map((field) => `"${field}"`).join(","),
+        [formatPlateForDisplay(r.plate), r.status, r.timestamp.toISOString(), r.error || ""].map((field) => `"${field}"`).join(","),
       ),
     ].join("\n");
 
@@ -476,7 +476,9 @@ export default function Home() {
                   </span>
                   <span>2-7 characters</span>
                 </div>
-                <p className="mt-2 text-xs leading-5 text-[#667587]">Use letters, digits 1-9, * for full spaces, and / for half-spaces.</p>
+                <p className="mt-2 text-xs leading-5 text-[#667587]">
+                  Use letters, digits 1-9, spaces for full spaces, and / for half-spaces.
+                </p>
 
                 <div className="mt-5 border-t border-[#e1e7ef] pt-5">
                   <div className="flex items-start justify-between gap-3">
@@ -542,9 +544,9 @@ export default function Home() {
                         {generatedPlates.map((plate) => (
                           <span
                             key={plate}
-                            className="rounded border border-[#b8c8d9] bg-white px-2.5 py-1 font-mono text-xs font-bold tracking-[0.08em] text-[#101828]"
+                            className="rounded border border-[#b8c8d9] bg-white px-2.5 py-1 font-mono text-xs font-bold tracking-[0.08em] whitespace-pre text-[#101828]"
                           >
-                            {plate}
+                            {formatPlateForDisplay(plate)}
                           </span>
                         ))}
                       </div>

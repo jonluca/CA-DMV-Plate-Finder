@@ -49,7 +49,11 @@ export type PlateValidationResult =
     };
 
 export function normalizePlateCandidate(value: string): string {
-  return value.trim().toUpperCase().replace(/\s+/g, "*");
+  return value.trim().toUpperCase().replace(/\s/g, "*");
+}
+
+export function formatPlateForDisplay(plate: string): string {
+  return plate.replace(/\*/g, " ");
 }
 
 export function parsePlateCandidates(text: string): string[] {
@@ -85,7 +89,7 @@ export function validatePlateCandidate(value: string): PlateValidationResult {
   }
 
   if (plate && !VALID_PLATE_CHARACTERS.test(plate)) {
-    errors.push("Use only letters, digits 1-9, * for full spaces, and / for half-spaces.");
+    errors.push("Use only letters, digits 1-9, spaces for full spaces, and / for half-spaces.");
   }
 
   const visibleCharacters = plate.replace(/[*/]/g, "");
