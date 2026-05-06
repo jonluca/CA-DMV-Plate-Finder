@@ -150,12 +150,33 @@ await assert.rejects(
 const responseStreamer: OpenAIResponseStreamer = () => ({
   async *[Symbol.asyncIterator]() {
     yield {
+      type: "response.created",
+      response: { id: "resp_test", status: "in_progress" },
+      sequence_number: 1,
+    } as never;
+    yield {
+      type: "response.in_progress",
+      response: { id: "resp_test", status: "in_progress" },
+      sequence_number: 2,
+    } as never;
+    yield {
       type: "response.output_text.delta",
       delta: '{"plates":["SURFA1","SURFA2",',
+      sequence_number: 3,
     } as never;
     yield {
       type: "response.output_text.delta",
       delta: '"SURFA3"]}',
+      sequence_number: 4,
+    } as never;
+    yield {
+      type: "response.output_text.done",
+      sequence_number: 5,
+    } as never;
+    yield {
+      type: "response.completed",
+      response: { id: "resp_test", status: "completed" },
+      sequence_number: 6,
     } as never;
   },
   async finalResponse() {
@@ -180,14 +201,41 @@ for await (const event of generatePlateCandidatesFromPromptStream({
   streamedEvents.push(event);
 }
 
-assert.deepEqual(streamedEvents.slice(0, 3), [
-  { type: "plate", plate: "SURFA1", model: "gpt-5" },
-  { type: "plate", plate: "SURFA2", model: "gpt-5" },
-  { type: "plate", plate: "SURFA3", model: "gpt-5" },
+assert.deepEqual(
+  streamedEvents.map((event) => (event.type === "progress" ? `${event.type}:${event.stage}` : event.type === "plate" ? `plate:${event.plate}` : event.type)),
+  [
+    "progress:created",
+    "progress:in_progress",
+    "progress:streaming_output",
+    "plate:SURFA1",
+    "plate:SURFA2",
+    "plate:SURFA3",
+    "progress:output_done",
+    "progress:completed",
+    "complete",
+  ],
+);
+assert.deepEqual(streamedEvents[0], {
+  type: "progress",
+  stage: "created",
+  message: "OpenAI accepted the generation request.",
+  apiEvent: "response.created",
+  model: "gpt-5",
+  generatedCount: 0,
+  targetCount: MAX_GENERATED_PLATES,
+  sequenceNumber: 1,
+  responseId: "resp_test",
+  responseStatus: "in_progress",
+});
+assert.deepEqual(streamedEvents.slice(3, 6), [
+  { type: "plate", plate: "SURFA1", model: "gpt-5", generatedCount: 1, targetCount: MAX_GENERATED_PLATES },
+  { type: "plate", plate: "SURFA2", model: "gpt-5", generatedCount: 2, targetCount: MAX_GENERATED_PLATES },
+  { type: "plate", plate: "SURFA3", model: "gpt-5", generatedCount: 3, targetCount: MAX_GENERATED_PLATES },
 ]);
 assert.deepEqual(streamedEvents.at(-1), {
   type: "complete",
   plates: generatedPlateFixtures,
   rejected: [],
   model: "gpt-5",
+  targetCount: MAX_GENERATED_PLATES,
 });

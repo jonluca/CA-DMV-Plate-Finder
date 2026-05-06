@@ -33,6 +33,15 @@ interface StatItem {
   className: string;
 }
 
+interface GenerationProgressState {
+  message: string;
+  generatedCount: number;
+  updatedAt: Date;
+  apiEvent?: string;
+  responseStatus?: string;
+  targetCount?: number;
+}
+
 const statusStyles: Record<
   PlateResultStatus,
   {
@@ -242,6 +251,7 @@ export default function Home() {
   const [generationPrompt, setGenerationPrompt] = useState("");
   const [generationRequest, setGenerationRequest] = useState<{ prompt: string; requestId: number } | null>(null);
   const [generatedPlates, setGeneratedPlates] = useState<string[]>([]);
+  const [generationProgress, setGenerationProgress] = useState<GenerationProgressState | null>(null);
   const [generationError, setGenerationError] = useState("");
   const [rejectedGenerationCount, setRejectedGenerationCount] = useState(0);
   const [generatedModel, setGeneratedModel] = useState("gpt-5.5");
@@ -285,19 +295,56 @@ export default function Home() {
       const event = trackedData.data;
       setGeneratedModel(event.model);
 
+      if (event.type === "progress") {
+        setGenerationProgress({
+          message: event.message,
+          generatedCount: event.generatedCount,
+          targetCount: event.targetCount,
+          apiEvent: event.apiEvent,
+          responseStatus: event.responseStatus,
+          updatedAt: new Date(),
+        });
+        return;
+      }
+
       if (event.type === "plate") {
         setGeneratedPlates((prev) => uniquePlateCandidates([...prev, event.plate]));
+        setGenerationProgress((currentProgress) => ({
+          message: "OpenAI is streaming candidate text.",
+          generatedCount: event.generatedCount,
+          targetCount: event.targetCount,
+          apiEvent: "response.output_text.delta",
+          responseStatus: currentProgress?.responseStatus,
+          updatedAt: new Date(),
+        }));
         queuePlateCandidates([event.plate]);
         return;
       }
 
       setGeneratedPlates(event.plates);
       setRejectedGenerationCount(event.rejected.length);
+      setGenerationProgress((currentProgress) => ({
+        message: "Final candidate list received; checking availability.",
+        generatedCount: event.plates.length,
+        targetCount: event.targetCount,
+        apiEvent: currentProgress?.apiEvent,
+        responseStatus: currentProgress?.responseStatus,
+        updatedAt: new Date(),
+      }));
       queuePlateCandidates(event.plates);
       setGenerationRequest(null);
     },
     onError: (err) => {
       setGenerationError(err.message);
+      setGenerationProgress((currentProgress) =>
+        currentProgress
+          ? {
+              ...currentProgress,
+              message: "Generation stopped before completion.",
+              updatedAt: new Date(),
+            }
+          : null,
+      );
       setGenerationRequest(null);
     },
   });
@@ -411,6 +458,11 @@ export default function Home() {
     }
 
     setGenerationError("");
+    setGenerationProgress({
+      message: "Connecting to OpenAI stream...",
+      generatedCount: 0,
+      updatedAt: new Date(),
+    });
     setGeneratedPlates([]);
     setRejectedGenerationCount(0);
     setGeneratedModel("gpt-5.5");
@@ -440,6 +492,7 @@ export default function Home() {
     setPlates([]);
     setResults([]);
     setGeneratedPlates([]);
+    setGenerationProgress(null);
     setGenerationError("");
     setRejectedGenerationCount(0);
     setGeneratedModel("gpt-5.5");
@@ -532,6 +585,19 @@ export default function Home() {
             : "Ready";
   const previewPlate = parsedPlates[0] ?? generatedPlates[0] ?? "SUNSET";
   const hasActiveResultControls = filter !== "all" || resultQuery.trim().length > 0;
+  const generationProgressCount = generationProgress?.generatedCount ?? generatedPlates.length;
+  const generationProgressTarget = generationProgress?.targetCount;
+  const generationProgressPercent = generationProgressTarget
+    ? Math.min(100, Math.round((generationProgressCount / generationProgressTarget) * 100))
+    : isGenerating
+      ? 12
+      : generationProgress
+        ? 100
+        : 0;
+  const generationProgressBarWidth = isGenerating ? Math.max(12, generationProgressPercent) : generationProgressPercent;
+  const generationProgressCountLabel = generationProgressTarget
+    ? `${generationProgressCount} / ${generationProgressTarget}`
+    : `${generationProgressCount} received`;
 
   const filterOptions: FilterOption[] = [
     {
@@ -665,6 +731,35 @@ export default function Home() {
                 >
                   {isGenerating ? "Generating..." : "Generate and check ideas"}
                 </button>
+
+                {(isGenerating || generationProgress) && (
+                  <div
+                    className="mt-3 rounded-lg border border-[#8abde8] bg-[#e8f3ff] p-3"
+                    role="status"
+                    aria-live="polite"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-black text-[#0a56a3]">
+                          {generationProgress?.message ?? "Connecting to OpenAI stream..."}
+                        </p>
+                        <p className="mt-1 text-xs font-semibold text-[#526172]">
+                          {generationProgress?.apiEvent ? `API event: ${generationProgress.apiEvent}` : "Waiting for the first API event."}
+                          {generationProgress?.responseStatus ? ` Status: ${generationProgress.responseStatus}.` : ""}
+                        </p>
+                      </div>
+                      <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-black tabular-nums text-[#0a56a3]">
+                        {generationProgressCountLabel}
+                      </span>
+                    </div>
+                    <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-white">
+                      <div
+                        className={`h-full rounded-full bg-[#0a56a3] transition-all duration-300 ${isGenerating ? "animate-pulse" : ""}`}
+                        style={{ width: `${generationProgressBarWidth}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {generationError && (
                   <div className="mt-3 rounded-lg border border-[#f1ca6d] bg-[#fff4d6] px-3 py-2 text-sm font-semibold text-[#765100]">

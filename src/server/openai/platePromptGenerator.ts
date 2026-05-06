@@ -74,17 +74,44 @@ export interface GeneratePlateCandidatesStreamOptions extends Omit<GeneratePlate
   responseStreamer?: OpenAIResponseStreamer;
 }
 
+export type GeneratedPlateProgressStage =
+  | "queued"
+  | "created"
+  | "in_progress"
+  | "content_started"
+  | "streaming_output"
+  | "output_done"
+  | "completed"
+  | "failed"
+  | "incomplete"
+  | "error";
+
 export type GeneratedPlateStreamEvent =
+  | {
+      type: "progress";
+      stage: GeneratedPlateProgressStage;
+      message: string;
+      apiEvent: ResponseStreamEvent["type"];
+      model: string;
+      generatedCount: number;
+      targetCount: number;
+      sequenceNumber?: number;
+      responseId?: string;
+      responseStatus?: string;
+    }
   | {
       type: "plate";
       plate: string;
       model: string;
+      generatedCount: number;
+      targetCount: number;
     }
   | {
       type: "complete";
       plates: string[];
       rejected: GeneratedPlateResult["rejected"];
       model: string;
+      targetCount: number;
     };
 
 export function extractResponseOutputText(payload: OpenAIResponsePayload): string {
@@ -265,6 +292,116 @@ function parsePlateResponse(response: OpenAIPlateResponsePayload): GeneratedPlat
   return GeneratedPlateResponseSchema.parse(JSON.parse(outputText));
 }
 
+function createProgressEvent({
+  event,
+  generatedCount,
+  message,
+  model,
+  stage,
+}: {
+  event: ResponseStreamEvent;
+  generatedCount: number;
+  message: string;
+  model: string;
+  stage: GeneratedPlateProgressStage;
+}): GeneratedPlateStreamEvent {
+  const eventWithSequence = event as { sequence_number?: unknown };
+  const eventWithResponse = event as { response?: { id?: unknown; status?: unknown } };
+
+  return {
+    type: "progress",
+    stage,
+    message,
+    apiEvent: event.type,
+    model,
+    generatedCount,
+    targetCount: MAX_GENERATED_PLATES,
+    ...(typeof eventWithSequence.sequence_number === "number" ? { sequenceNumber: eventWithSequence.sequence_number } : {}),
+    ...(typeof eventWithResponse.response?.id === "string" ? { responseId: eventWithResponse.response.id } : {}),
+    ...(typeof eventWithResponse.response?.status === "string" ? { responseStatus: eventWithResponse.response.status } : {}),
+  };
+}
+
+function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, generatedCount: number): GeneratedPlateStreamEvent | null {
+  switch (event.type) {
+    case "response.queued":
+      return createProgressEvent({
+        event,
+        generatedCount,
+        message: "OpenAI queued the generation request.",
+        model,
+        stage: "queued",
+      });
+    case "response.created":
+      return createProgressEvent({
+        event,
+        generatedCount,
+        message: "OpenAI accepted the generation request.",
+        model,
+        stage: "created",
+      });
+    case "response.in_progress":
+      return createProgressEvent({
+        event,
+        generatedCount,
+        message: "OpenAI is generating plate ideas.",
+        model,
+        stage: "in_progress",
+      });
+    case "response.output_item.added":
+    case "response.content_part.added":
+      return createProgressEvent({
+        event,
+        generatedCount,
+        message: "OpenAI started the structured response.",
+        model,
+        stage: "content_started",
+      });
+    case "response.output_text.done":
+      return createProgressEvent({
+        event,
+        generatedCount,
+        message: "OpenAI finished streaming text; validating candidates.",
+        model,
+        stage: "output_done",
+      });
+    case "response.completed":
+      return createProgressEvent({
+        event,
+        generatedCount,
+        message: "OpenAI completed generation; preparing the final candidate list.",
+        model,
+        stage: "completed",
+      });
+    case "response.incomplete":
+      return createProgressEvent({
+        event,
+        generatedCount,
+        message: "OpenAI stopped before completing the response.",
+        model,
+        stage: "incomplete",
+      });
+    case "response.failed":
+      return createProgressEvent({
+        event,
+        generatedCount,
+        message: "OpenAI reported a generation failure.",
+        model,
+        stage: "failed",
+      });
+    case "error":
+      return createProgressEvent({
+        event,
+        generatedCount,
+        message: `OpenAI stream error: ${event.message}`,
+        model,
+        stage: "error",
+      });
+    default:
+      return null;
+  }
+}
+
 export async function generatePlateCandidatesFromPrompt({
   prompt,
   apiKey = process.env.OPENAI_API_KEY,
@@ -307,11 +444,27 @@ export async function* generatePlateCandidatesFromPromptStream({
   const streamResponse = responseStreamer ?? createOpenAIResponseStreamer(apiKey);
   const stream = streamResponse(requestBody);
   const streamedPlates = new Set<string>();
+  let hasStartedTextOutput = false;
   let outputText = "";
 
   for await (const event of stream) {
     if (event.type !== "response.output_text.delta") {
+      const progressEvent = mapOpenAIProgressEvent(event, model, streamedPlates.size);
+      if (progressEvent) {
+        yield progressEvent;
+      }
       continue;
+    }
+
+    if (!hasStartedTextOutput) {
+      hasStartedTextOutput = true;
+      yield createProgressEvent({
+        event,
+        generatedCount: streamedPlates.size,
+        message: "OpenAI is streaming candidate text.",
+        model,
+        stage: "streaming_output",
+      });
     }
 
     outputText += event.delta;
@@ -327,6 +480,8 @@ export async function* generatePlateCandidatesFromPromptStream({
         type: "plate",
         plate,
         model,
+        generatedCount: streamedPlates.size,
+        targetCount: MAX_GENERATED_PLATES,
       };
     }
   }
@@ -343,5 +498,6 @@ export async function* generatePlateCandidatesFromPromptStream({
     plates,
     rejected,
     model,
+    targetCount: MAX_GENERATED_PLATES,
   };
 }
