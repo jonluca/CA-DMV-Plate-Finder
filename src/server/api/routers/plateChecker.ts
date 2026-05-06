@@ -3,7 +3,7 @@ import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 import { tracked } from "@trpc/server";
 import { PlateFinder } from "~/plateFinder";
 import { pMapIterable } from "p-map";
-import { MAX_PLATES_PER_CHECK, validatePlateCandidate } from "~/plateRules";
+import { MAX_PLATES_PER_CHECK, uniquePlateCandidates, validatePlateCandidate } from "~/plateRules";
 
 async function* createPlateGenerator(plates: string[]): AsyncGenerator<string> {
   for (const plate of plates) {
@@ -17,7 +17,11 @@ export const plateCheckerRouter = createTRPCRouter({
   checkPlates: publicProcedure
     .input(
       z.object({
-        plates: z.array(z.string().min(1).max(32)).min(1).max(MAX_PLATES_PER_CHECK),
+        plates: z
+          .array(z.string().min(1).max(32))
+          .min(1)
+          .transform(uniquePlateCandidates)
+          .pipe(z.array(z.string()).min(1).max(MAX_PLATES_PER_CHECK)),
       }),
     )
     .subscription(async function* ({ input }) {
@@ -27,7 +31,6 @@ export const plateCheckerRouter = createTRPCRouter({
       try {
         const validPlates: string[] = [];
         const invalidPlates: Array<{ plate: string; errors: string[] }> = [];
-        const seenPlates = new Set<string>();
 
         for (const plate of input.plates) {
           const validation = validatePlateCandidate(plate);
@@ -37,10 +40,7 @@ export const plateCheckerRouter = createTRPCRouter({
             continue;
           }
 
-          if (!seenPlates.has(validation.plate)) {
-            seenPlates.add(validation.plate);
-            validPlates.push(validation.plate);
-          }
+          validPlates.push(validation.plate);
         }
 
         for (const invalidPlate of invalidPlates) {

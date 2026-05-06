@@ -49,6 +49,8 @@ const getSortLabel = (field: SortField, sortField: SortField, sortDirection: Sor
   return sortField === field ? sortDirection : "sort";
 };
 
+const formatPlateListForInput = (plateList: string[]) => plateList.map(formatPlateForDisplay).join("\n");
+
 function StatCard({ stat }: { stat: StatItem }) {
   return (
     <div className="rounded-lg border border-[#d8e0ea] bg-white p-4 shadow-sm">
@@ -220,12 +222,17 @@ export default function Home() {
     setInputText(formatPlateForDisplay(e.target.value));
   };
 
+  const normalizeInputList = () => {
+    setInputText(formatPlateListForInput(parsedPlates));
+  };
+
   const handleCheckPlates = () => {
     if (parsedPlates.length === 0) {
       alert("Please enter at least one plate candidate");
       return;
     }
 
+    setInputText(formatPlateListForInput(parsedPlates));
     setPlates(parsedPlates);
     setResults([]);
     setFilter("all");
@@ -247,7 +254,7 @@ export default function Home() {
   const applyGeneratedPlates = (mode: GeneratedPlateApplyMode) => {
     const basePlates = mode === "append" ? parsedPlates : [];
     const nextPlates = parsePlateCandidates([...basePlates, ...generatedPlates].join("\n"));
-    setInputText(nextPlates.map(formatPlateForDisplay).join("\n"));
+    setInputText(formatPlateListForInput(nextPlates));
   };
 
   const handleStop = () => {
@@ -391,6 +398,7 @@ export default function Home() {
       activeClassName: "border-[#b9810a] bg-[#fff1c4] text-[#6a4a00]",
     },
   ];
+  const visibleFilterOptions = filterOptions.filter((option) => option.count !== 0);
 
   const stats: StatItem[] = [
     { label: "Checked", value: counts.totalChecked, className: "text-[#0a56a3]" },
@@ -460,6 +468,7 @@ export default function Home() {
                   id="plate-input"
                   value={inputText}
                   onChange={handleInputChange}
+                  onBlur={normalizeInputList}
                   placeholder={"ABC123\nXYZ789\nPLATE1"}
                   className="mt-2 min-h-44 w-full resize-y rounded-lg border border-[#c8d2df] bg-[#fbfcfe] p-4 font-mono text-sm text-[#172033] shadow-inner transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6] disabled:text-[#7a8796]"
                   disabled={isChecking}
@@ -639,11 +648,13 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-2 px-5 py-4">
-                {filterOptions.map((option) => (
-                  <FilterButton key={option.id} option={option} isActive={filter === option.id} onClick={() => setFilter(option.id)} />
-                ))}
-              </div>
+              {visibleFilterOptions.length > 0 && (
+                <div className="flex flex-wrap gap-2 px-5 py-4">
+                  {visibleFilterOptions.map((option) => (
+                    <FilterButton key={option.id} option={option} isActive={filter === option.id} onClick={() => setFilter(option.id)} />
+                  ))}
+                </div>
+              )}
 
               <div className="border-t border-[#e1e7ef]">
                 <div className="max-h-[620px] min-h-[440px] overflow-auto">

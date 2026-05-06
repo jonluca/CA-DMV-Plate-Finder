@@ -30,6 +30,7 @@ async function* getNextPlate(): AsyncGenerator<string> {
       input: fileStream,
       crlfDelay: Infinity, // Handle both \n and \r\n line endings
     });
+    const seenPlates = new Set<string>();
 
     for await (const line of rl) {
       const trimmedLine = line.trim();
@@ -39,6 +40,11 @@ async function* getNextPlate(): AsyncGenerator<string> {
 
       const validation = validatePlateCandidate(trimmedLine);
       if (validation.valid) {
+        if (seenPlates.has(validation.plate)) {
+          continue;
+        }
+
+        seenPlates.add(validation.plate);
         yield validation.plate;
       } else {
         console.warn(`Skipping invalid plate ${formatPlateForDisplay(validation.plate || trimmedLine)}: ${validation.errors.join("; ")}`);

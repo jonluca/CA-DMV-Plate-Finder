@@ -56,12 +56,12 @@ export function formatPlateForDisplay(plate: string): string {
   return plate.replace(/\*/g, " ");
 }
 
-export function parsePlateCandidates(text: string): string[] {
+export function uniquePlateCandidates(candidates: Iterable<string>): string[] {
   const seen = new Set<string>();
   const plates: string[] = [];
 
-  for (const token of text.split(PLATE_TOKEN_SEPARATOR)) {
-    const plate = normalizePlateCandidate(token);
+  for (const candidate of candidates) {
+    const plate = normalizePlateCandidate(candidate);
 
     if (!plate || seen.has(plate)) {
       continue;
@@ -72,6 +72,10 @@ export function parsePlateCandidates(text: string): string[] {
   }
 
   return plates;
+}
+
+export function parsePlateCandidates(text: string): string[] {
+  return uniquePlateCandidates(text.split(PLATE_TOKEN_SEPARATOR));
 }
 
 export function validatePlateCandidate(value: string): PlateValidationResult {

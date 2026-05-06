@@ -5,6 +5,7 @@ import {
   MAX_PERSONALIZED_PLATE_LENGTH,
   MIN_PERSONALIZED_PLATE_LENGTH,
   parsePlateCandidates,
+  uniquePlateCandidates,
   validatePlateCandidate,
 } from "./plateRules.js";
 
@@ -29,8 +30,10 @@ assert.equal(MIN_PERSONALIZED_PLATE_LENGTH, 2);
 assert.equal(MAX_PERSONALIZED_PLATE_LENGTH, 7);
 
 assert.deepEqual(parsePlateCandidates("abc123, abc123\nxy; go/car"), ["ABC123", "XY", "GO/CAR"]);
+assert.deepEqual(parsePlateCandidates("abc123, ABC123\n abc123 \nxy"), ["ABC123", "XY"]);
 assert.deepEqual(parsePlateCandidates("go car\nxy\n"), ["GO*CAR", "XY"]);
 assert.deepEqual(parsePlateCandidates("go  car\nxy\n"), ["GO**CAR", "XY"]);
+assert.deepEqual(uniquePlateCandidates(["go car", "GO*CAR", "", " xy "]), ["GO*CAR", "XY"]);
 assert.equal(formatPlateForDisplay("GO*CAR"), "GO CAR");
 assert.equal(formatPlateForDisplay("GO**CAR"), "GO  CAR");
 
