@@ -1,6 +1,6 @@
 import { Agent, request } from "undici";
 import userAgents from "top-user-agents";
-import { MAX_PERSONALIZED_PLATE_LENGTH, normalizePlateCandidate, validatePlateCandidate } from "./plateRules";
+import { formatPlateForDisplay, MAX_PERSONALIZED_PLATE_LENGTH, normalizePlateCandidate, validatePlateCandidate } from "./plateRules";
 
 const USER_AGENT = userAgents[0];
 const REFERER_URL = "https://www.dmv.ca.gov/wasapp/ipp2/initPers.do";
@@ -127,7 +127,7 @@ export class PlateFinder {
   async getPlateStatus(plate: string): Promise<PlateStatus> {
     const validation = validatePlateCandidate(plate);
     if (!validation.valid) {
-      console.error(`Invalid plate ${validation.plate || plate}: ${validation.errors.join("; ")}`);
+      console.error(`Invalid plate ${formatPlateForDisplay(validation.plate || plate)}: ${validation.errors.join("; ")}`);
       return "INVALID";
     }
 
@@ -160,7 +160,7 @@ export class PlateFinder {
       const plateStatus = typeof responseData.code === "string" ? responseData.code : "UNKNOWN";
 
       if (plateStatus === "AVAILABLE") {
-        console.log(`${validation.plate} is AVAILABLE`);
+        console.log(`${formatPlateForDisplay(validation.plate)} is AVAILABLE`);
         this.availablePlates.push(validation.plate);
         return "AVAILABLE";
       }
@@ -172,7 +172,7 @@ export class PlateFinder {
       return "UNAVAILABLE";
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
-      console.error(`Error checking plate ${plate}: ${errorMessage}`);
+      console.error(`Error checking plate ${formatPlateForDisplay(plate)}: ${errorMessage}`);
       return "ERROR";
     }
   }
@@ -181,7 +181,7 @@ export class PlateFinder {
     for await (const plate of this.plateGenerator) {
       const status = await this.getPlateStatus(plate);
       if (status === "ERROR") {
-        console.error(`Failed to check plate ${plate}`);
+        console.error(`Failed to check plate ${formatPlateForDisplay(plate)}`);
       }
       this.platesChecked++;
     }
@@ -191,7 +191,7 @@ export class PlateFinder {
     for await (const plate of this.plateGenerator) {
       const status = await this.getPlateStatus(plate);
       if (status === "ERROR") {
-        console.error(`Failed to check plate ${plate}`);
+        console.error(`Failed to check plate ${formatPlateForDisplay(plate)}`);
       }
       this.platesChecked++;
       yield { plate: plate.toUpperCase(), status };

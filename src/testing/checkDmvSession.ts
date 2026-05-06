@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { PlateFinder, type PlateStatus } from "../plateFinder.js";
-import { validatePlateCandidate } from "../plateRules.js";
+import { formatPlateForDisplay, validatePlateCandidate } from "../plateRules.js";
 
 const DEFAULT_SAMPLE_PLATE = "ABC123";
 
@@ -24,14 +24,14 @@ async function main(): Promise<void> {
   for (const plate of platesToCheck) {
     const validation = validatePlateCandidate(plate);
     if (!validation.valid) {
-      console.error(`${validation.plate || plate}: INVALID_INPUT (${validation.errors.join("; ")})`);
+      console.error(`${formatPlateForDisplay(validation.plate || plate)}: INVALID_INPUT (${validation.errors.join("; ")})`);
       process.exitCode = 1;
       continue;
     }
 
     const status = await finder.getPlateStatus(validation.plate);
     statuses.push(status);
-    console.log(`${validation.plate}: ${status}`);
+    console.log(`${formatPlateForDisplay(validation.plate)}: ${status}`);
 
     if (status === "ERROR") {
       process.exitCode = 1;

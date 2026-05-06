@@ -5,7 +5,12 @@ import { existsSync } from "fs";
 import { createReadStream, writeFileSync } from "fs";
 import { createInterface } from "readline";
 import { combinationsWithReplacement } from "combinatorial-generators";
-import { MAX_PERSONALIZED_PLATE_LENGTH, MIN_PERSONALIZED_PLATE_LENGTH, validatePlateCandidate } from "./plateRules.js";
+import {
+  formatPlateForDisplay,
+  MAX_PERSONALIZED_PLATE_LENGTH,
+  MIN_PERSONALIZED_PLATE_LENGTH,
+  validatePlateCandidate,
+} from "./plateRules.js";
 
 const NUM_PARALLEL = Number(process.env.NUM_PARALLEL || 50);
 
@@ -36,7 +41,7 @@ async function* getNextPlate(): AsyncGenerator<string> {
       if (validation.valid) {
         yield validation.plate;
       } else {
-        console.warn(`Skipping invalid plate ${validation.plate || trimmedLine}: ${validation.errors.join("; ")}`);
+        console.warn(`Skipping invalid plate ${formatPlateForDisplay(validation.plate || trimmedLine)}: ${validation.errors.join("; ")}`);
       }
     }
   } else {
@@ -78,7 +83,7 @@ async function main(): Promise<void> {
   console.log(`\nFound ${allAvailablePlates.length}/${numPlatesChecked} available plates:`);
   // write this to available-plates.txt
   const outputFile = "available-plates.txt";
-  const fileContent = allAvailablePlates.sort().join("\n");
+  const fileContent = allAvailablePlates.sort().map(formatPlateForDisplay).join("\n");
   writeFileSync(outputFile, fileContent);
   console.log(`Available plates written to ${outputFile}`);
   // Calculate and display the total execution time
