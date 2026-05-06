@@ -1,5 +1,6 @@
 import { postRouter } from "~/server/api/routers/post";
 import { plateCheckerRouter } from "~/server/api/routers/plateChecker";
+import { plateGeneratorRouter } from "~/server/api/routers/plateGenerator";
 import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 
 /**
@@ -10,6 +11,7 @@ import { createCallerFactory, createTRPCRouter } from "~/server/api/trpc";
 export const appRouter = createTRPCRouter({
   post: postRouter,
   plateChecker: plateCheckerRouter,
+  plateGenerator: plateGeneratorRouter,
 });
 
 // export type definition of API

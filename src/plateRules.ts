@@ -3,7 +3,7 @@ export const MAX_PERSONALIZED_PLATE_LENGTH = 7;
 export const MAX_PLATES_PER_CHECK = 1000;
 
 const VALID_PLATE_CHARACTERS = /^[A-Z1-9*/]+$/;
-const PLATE_TOKEN_SEPARATOR = /[\s,;]+/;
+const PLATE_TOKEN_SEPARATOR = /[,;\r\n]+/;
 
 const REGULAR_SERIES_RESTRICTIONS = [
   {

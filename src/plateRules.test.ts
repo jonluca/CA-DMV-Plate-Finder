@@ -28,6 +28,7 @@ assert.equal(MIN_PERSONALIZED_PLATE_LENGTH, 2);
 assert.equal(MAX_PERSONALIZED_PLATE_LENGTH, 7);
 
 assert.deepEqual(parsePlateCandidates("abc123, abc123\nxy; go/car"), ["ABC123", "XY", "GO/CAR"]);
+assert.deepEqual(parsePlateCandidates("go car\nxy\n"), ["GO*CAR", "XY"]);
 
 assertValid(" ca1969 ", "CA1969");
 assertValid("go/car", "GO/CAR");
