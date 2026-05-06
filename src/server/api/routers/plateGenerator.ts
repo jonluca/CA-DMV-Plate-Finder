@@ -1,7 +1,7 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 
-import { generatePlateCandidatesFromPrompt, MAX_GENERATED_PLATES } from "~/server/openai/platePromptGenerator";
+import { generatePlateCandidatesFromPrompt } from "~/server/openai/platePromptGenerator";
 import { createTRPCRouter, publicProcedure } from "~/server/api/trpc";
 
 export const plateGeneratorRouter = createTRPCRouter({
@@ -9,7 +9,6 @@ export const plateGeneratorRouter = createTRPCRouter({
     .input(
       z.object({
         prompt: z.string().trim().min(3).max(1000),
-        count: z.number().int().min(1).max(MAX_GENERATED_PLATES),
       }),
     )
     .mutation(async ({ input }) => {

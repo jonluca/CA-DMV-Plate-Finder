@@ -17,9 +17,6 @@ type SortField = "plate" | "status" | "timestamp";
 type SortDirection = "asc" | "desc";
 type GeneratedPlateApplyMode = "append" | "replace";
 
-const DEFAULT_GENERATED_PLATE_COUNT = 12;
-const MAX_GENERATED_PLATE_COUNT = 50;
-
 interface FilterOption {
   id: FilterType;
   label: string;
@@ -168,7 +165,6 @@ function ResultsTable({
 export default function Home() {
   const [inputText, setInputText] = useState("");
   const [generationPrompt, setGenerationPrompt] = useState("");
-  const [generationCount, setGenerationCount] = useState(DEFAULT_GENERATED_PLATE_COUNT);
   const [generatedPlates, setGeneratedPlates] = useState<string[]>([]);
   const [generationError, setGenerationError] = useState("");
   const [plates, setPlates] = useState<string[]>([]);
@@ -245,7 +241,6 @@ export default function Home() {
 
     generatePlates.mutate({
       prompt,
-      count: generationCount,
     });
   };
 
@@ -486,23 +481,6 @@ export default function Home() {
                       <p className="text-xs font-semibold tracking-[0.14em] text-[#6a7787] uppercase">GPT-5 generator</p>
                       <h3 className="mt-1 text-base font-semibold text-[#101828]">Generate plate ideas</h3>
                     </div>
-                    <label className="text-xs font-semibold text-[#526172]">
-                      Count
-                      <input
-                        type="number"
-                        min={1}
-                        max={MAX_GENERATED_PLATE_COUNT}
-                        value={generationCount}
-                        onChange={(event) => {
-                          const nextCount = Number(event.target.value);
-                          if (Number.isFinite(nextCount)) {
-                            setGenerationCount(Math.min(MAX_GENERATED_PLATE_COUNT, Math.max(1, nextCount)));
-                          }
-                        }}
-                        className="mt-1 block w-20 rounded-lg border border-[#c8d2df] bg-[#fbfcfe] px-3 py-2 text-sm font-semibold text-[#172033] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6]"
-                        disabled={isChecking || isGenerating}
-                      />
-                    </label>
                   </div>
 
                   <label htmlFor="plate-generation-prompt" className="mt-4 block text-sm font-medium text-[#344054]">

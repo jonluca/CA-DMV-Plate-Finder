@@ -61,7 +61,6 @@ export interface GeneratedPlateResult {
 
 export interface GeneratePlateCandidatesOptions {
   prompt: string;
-  count: number;
   apiKey?: string;
   model?: string;
   responseParser?: OpenAIResponseParser;
@@ -112,9 +111,9 @@ export function normalizeGeneratedPlates(rawPlates: string[]) {
   return { plates, rejected };
 }
 
-function buildPlateResponseSchema(count: number) {
+function buildPlateResponseSchema() {
   return z.object({
-    plates: z.array(z.string().min(MIN_PERSONALIZED_PLATE_LENGTH).max(MAX_PERSONALIZED_PLATE_LENGTH)).min(count).max(count),
+    plates: z.array(z.string().min(MIN_PERSONALIZED_PLATE_LENGTH).max(MAX_PERSONALIZED_PLATE_LENGTH)).min(1).max(MAX_GENERATED_PLATES),
   });
 }
 
@@ -131,7 +130,7 @@ function buildInstructions(): string {
     "Avoid offensive, sexually explicit, hateful, harassing, illegal, or drug-related references.",
     "Prefer short, memorable, readable candidates that match the user's theme when spaces and / are rendered as spacing.",
     "Use variety across wording, abbreviations, numbers, and spacing so the returned set is not repetitive.",
-    "Check the complete list before responding: exactly the requested count, unique values, no invalid characters, no duplicate meanings when a better alternative is available.",
+    "Check the complete list before responding: as many unique values as the response schema allows, no invalid characters, no duplicate meanings when a better alternative is available.",
   ].join("\n");
 }
 
@@ -161,8 +160,8 @@ function getReasoningEffort(model: string): ReasoningEffort | undefined {
   return undefined;
 }
 
-function calculateMaxOutputTokens(count: number): number {
-  return Math.max(MIN_OPENAI_OUTPUT_TOKENS, count * OPENAI_OUTPUT_TOKENS_PER_PLATE);
+function calculateMaxOutputTokens(): number {
+  return Math.max(MIN_OPENAI_OUTPUT_TOKENS, MAX_GENERATED_PLATES * OPENAI_OUTPUT_TOKENS_PER_PLATE);
 }
 
 function createOpenAIResponseParser(apiKey: string): OpenAIResponseParser {
@@ -195,7 +194,6 @@ function parsePlateResponse(response: OpenAIPlateResponsePayload): GeneratedPlat
 
 export async function generatePlateCandidatesFromPrompt({
   prompt,
-  count,
   apiKey = process.env.OPENAI_API_KEY,
   model = process.env.OPENAI_MODEL ?? DEFAULT_OPENAI_MODEL,
   responseParser,
@@ -207,13 +205,13 @@ export async function generatePlateCandidatesFromPrompt({
   const reasoningEffort = getReasoningEffort(model);
   const requestBody = {
     model,
-    input: [`Generate exactly ${count} unique plate candidates.`, "User theme:", prompt].join("\n"),
+    input: ["Generate as many unique plate candidates as the response schema allows.", "User theme:", prompt].join("\n"),
     instructions: buildInstructions(),
-    max_output_tokens: calculateMaxOutputTokens(count),
+    max_output_tokens: calculateMaxOutputTokens(),
     store: false,
     ...(reasoningEffort ? { reasoning: { effort: reasoningEffort } } : {}),
     text: {
-      format: zodTextFormat(buildPlateResponseSchema(count), "license_plate_candidates"),
+      format: zodTextFormat(buildPlateResponseSchema(), "license_plate_candidates"),
     },
   } satisfies ResponseCreateParamsNonStreaming;
 
@@ -226,7 +224,7 @@ export async function generatePlateCandidatesFromPrompt({
   }
 
   return {
-    plates: plates.slice(0, count),
+    plates,
     rejected,
     model,
   };
