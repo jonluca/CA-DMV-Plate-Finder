@@ -1,20 +1,24 @@
 import { skipToken } from "@tanstack/react-query";
 import Head from "next/head";
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  sortPlateResults,
+  type PlateResultSortDirection as SortDirection,
+  type PlateResultSortField as SortField,
+  type PlateResultStatus,
+} from "~/plateResultSorting";
 import { formatPlateForDisplay, parsePlateCandidates } from "~/plateRules";
 import { api } from "~/utils/api";
 
 interface PlateResult {
   plate: string;
-  status: "AVAILABLE" | "UNAVAILABLE" | "INVALID" | "ERROR" | "CHECKING";
+  status: PlateResultStatus;
   timestamp: Date;
   error?: string;
   totalChecked?: number;
 }
 
 type FilterType = "all" | "available" | "unavailable" | "checking" | "invalid" | "error";
-type SortField = "plate" | "status" | "timestamp";
-type SortDirection = "asc" | "desc";
 type GeneratedPlateApplyMode = "append" | "replace";
 
 interface FilterOption {
@@ -172,8 +176,8 @@ export default function Home() {
   const [plates, setPlates] = useState<string[]>([]);
   const [results, setResults] = useState<PlateResult[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
-  const [sortField, setSortField] = useState<SortField>("timestamp");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [sortField, setSortField] = useState<SortField>("status");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const resultsEndRef = useRef<HTMLDivElement>(null);
 
   const parsedPlates = useMemo(() => parsePlateCandidates(inputText), [inputText]);
@@ -309,23 +313,7 @@ export default function Home() {
       }
     });
 
-    return filtered.sort((a, b) => {
-      let comparison = 0;
-
-      switch (sortField) {
-        case "plate":
-          comparison = a.plate.localeCompare(b.plate);
-          break;
-        case "status":
-          comparison = a.status.localeCompare(b.status);
-          break;
-        case "timestamp":
-          comparison = a.timestamp.getTime() - b.timestamp.getTime();
-          break;
-      }
-
-      return sortDirection === "asc" ? comparison : -comparison;
-    });
+    return sortPlateResults(filtered, sortField, sortDirection);
   }, [plateResults, filter, sortField, sortDirection]);
 
   const handleSort = (field: SortField) => {
