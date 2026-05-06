@@ -37,8 +37,6 @@ interface GenerationProgressState {
   message: string;
   generatedCount: number;
   updatedAt: Date;
-  apiEvent?: string;
-  responseStatus?: string;
   targetCount?: number;
 }
 
@@ -179,7 +177,7 @@ function EmptyResults({ hasResults, hasActiveFilter }: { hasResults: boolean; ha
       <p className="mt-2 max-w-md text-sm leading-6 text-[#667587]">
         {hasResults && hasActiveFilter
           ? "Clear the search or switch status filters to bring hidden plate checks back into view."
-          : "Paste plate candidates or generate ideas, then start a run to stream DMV availability results here."}
+          : "Paste plate ideas or generate new ones, then start a run to see DMV availability results here."}
       </p>
     </div>
   );
@@ -254,7 +252,6 @@ export default function Home() {
   const [generationProgress, setGenerationProgress] = useState<GenerationProgressState | null>(null);
   const [generationError, setGenerationError] = useState("");
   const [rejectedGenerationCount, setRejectedGenerationCount] = useState(0);
-  const [generatedModel, setGeneratedModel] = useState("gpt-5.5");
   const [plates, setPlates] = useState<string[]>([]);
   const [results, setResults] = useState<PlateResult[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
@@ -293,15 +290,12 @@ export default function Home() {
   api.plateGenerator.generateStream.useSubscription(generationRequest ?? skipToken, {
     onData: (trackedData) => {
       const event = trackedData.data;
-      setGeneratedModel(event.model);
 
       if (event.type === "progress") {
         setGenerationProgress({
           message: event.message,
           generatedCount: event.generatedCount,
           targetCount: event.targetCount,
-          apiEvent: event.apiEvent,
-          responseStatus: event.responseStatus,
           updatedAt: new Date(),
         });
         return;
@@ -309,38 +303,35 @@ export default function Home() {
 
       if (event.type === "plate") {
         setGeneratedPlates((prev) => uniquePlateCandidates([...prev, event.plate]));
-        setGenerationProgress((currentProgress) => ({
-          message: "OpenAI is streaming candidate text.",
+        setGenerationProgress({
+          message: "Plate ideas are coming in.",
           generatedCount: event.generatedCount,
           targetCount: event.targetCount,
-          apiEvent: "response.output_text.delta",
-          responseStatus: currentProgress?.responseStatus,
           updatedAt: new Date(),
-        }));
+        });
         queuePlateCandidates([event.plate]);
         return;
       }
 
       setGeneratedPlates(event.plates);
       setRejectedGenerationCount(event.rejected.length);
-      setGenerationProgress((currentProgress) => ({
-        message: "Final candidate list received; checking availability.",
+      setGenerationProgress({
+        message: "Ideas are ready. Checking availability.",
         generatedCount: event.plates.length,
         targetCount: event.targetCount,
-        apiEvent: currentProgress?.apiEvent,
-        responseStatus: currentProgress?.responseStatus,
         updatedAt: new Date(),
-      }));
+      });
       queuePlateCandidates(event.plates);
       setGenerationRequest(null);
     },
     onError: (err) => {
-      setGenerationError(err.message);
+      console.error("Generation error:", err);
+      setGenerationError("We couldn't generate ideas right now. Please try again in a moment.");
       setGenerationProgress((currentProgress) =>
         currentProgress
           ? {
               ...currentProgress,
-              message: "Generation stopped before completion.",
+              message: "Idea generation stopped before finishing.",
               updatedAt: new Date(),
             }
           : null,
@@ -442,7 +433,7 @@ export default function Home() {
 
   const handleCheckPlates = () => {
     if (parsedPlates.length === 0) {
-      alert("Please enter at least one plate candidate");
+      alert("Please enter at least one plate idea.");
       return;
     }
 
@@ -459,13 +450,12 @@ export default function Home() {
 
     setGenerationError("");
     setGenerationProgress({
-      message: "Connecting to OpenAI stream...",
+      message: "Starting your plate ideas...",
       generatedCount: 0,
       updatedAt: new Date(),
     });
     setGeneratedPlates([]);
     setRejectedGenerationCount(0);
-    setGeneratedModel("gpt-5.5");
     setGenerationRequest({
       prompt,
       requestId: Date.now(),
@@ -495,7 +485,6 @@ export default function Home() {
     setGenerationProgress(null);
     setGenerationError("");
     setRejectedGenerationCount(0);
-    setGeneratedModel("gpt-5.5");
     setGenerationRequest(null);
     setFilter("all");
     setResultQuery("");
@@ -596,8 +585,8 @@ export default function Home() {
         : 0;
   const generationProgressBarWidth = isGenerating ? Math.max(12, generationProgressPercent) : generationProgressPercent;
   const generationProgressCountLabel = generationProgressTarget
-    ? `${generationProgressCount} / ${generationProgressTarget}`
-    : `${generationProgressCount} received`;
+    ? `${generationProgressCount} of ${generationProgressTarget} ideas`
+    : `${generationProgressCount} ideas found`;
 
   const filterOptions: FilterOption[] = [
     {
@@ -673,7 +662,7 @@ export default function Home() {
                   <p className="text-xs font-bold tracking-[0.18em] text-[#0a56a3] uppercase">California DMV availability workspace</p>
                   <h1 className="mt-1 text-3xl font-black tracking-tight text-[#101828] sm:text-4xl">CA DMV Plate Finder</h1>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-[#526172] sm:text-base">
-                    Generate plate ideas, stream availability checks, and keep export-ready results organized while a run is active.
+                    Generate plate ideas, check availability, and keep export-ready results organized while a run is active.
                   </p>
                 </div>
               </div>
@@ -707,12 +696,12 @@ export default function Home() {
                 <PanelHeader
                   kicker="Step 1"
                   title="Generate plate ideas"
-                  description="Describe a theme and the generator will stream DMV-safe candidates into availability checks."
+                  description="Describe a theme and we will add valid plate ideas to availability checks."
                   action={<MiniPlate plate={previewPlate} />}
                 />
 
                 <label htmlFor="plate-generation-prompt" className="mt-5 block text-sm font-bold text-[#344054]">
-                  Prompt
+                  Describe your idea
                 </label>
                 <textarea
                   id="plate-generation-prompt"
@@ -736,12 +725,9 @@ export default function Home() {
                   <div className="mt-3 rounded-lg border border-[#8abde8] bg-[#e8f3ff] p-3" role="status" aria-live="polite">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-sm font-black text-[#0a56a3]">
-                          {generationProgress?.message ?? "Connecting to OpenAI stream..."}
-                        </p>
+                        <p className="text-sm font-black text-[#0a56a3]">{generationProgress?.message ?? "Starting your plate ideas..."}</p>
                         <p className="mt-1 text-xs font-semibold text-[#526172]">
-                          {generationProgress?.apiEvent ? `API event: ${generationProgress.apiEvent}` : "Waiting for the first API event."}
-                          {generationProgress?.responseStatus ? ` Status: ${generationProgress.responseStatus}.` : ""}
+                          Availability checks start automatically as ideas appear.
                         </p>
                       </div>
                       <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-black text-[#0a56a3] tabular-nums">
@@ -766,10 +752,8 @@ export default function Home() {
                 {generatedPlates.length > 0 && (
                   <div className="mt-4 rounded-lg border border-[#d8e0ea] bg-[#f8fbff] p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[#526172]">
-                      <span>
-                        {generatedPlates.length} generated with {generatedModel}
-                      </span>
-                      {rejectedGenerationCount > 0 && <span>{rejectedGenerationCount} filtered out</span>}
+                      <span>{generatedPlates.length} ideas generated</span>
+                      {rejectedGenerationCount > 0 && <span>{rejectedGenerationCount} not usable</span>}
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {generatedPlates.map((plate) => (
@@ -782,7 +766,7 @@ export default function Home() {
                 <details className="group mt-5 rounded-lg border border-[#d8e0ea] bg-[#f8fbff]">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-left marker:hidden focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
                     <span>
-                      <span className="block text-sm font-black text-[#101828]">Manual plate candidates</span>
+                      <span className="block text-sm font-black text-[#101828]">Manual plate ideas</span>
                       <span className="mt-0.5 block text-xs font-semibold text-[#667587]">
                         Paste a manual list when you already know what to check.
                       </span>
@@ -802,7 +786,7 @@ export default function Home() {
 
                   <div className="border-t border-[#d8e0ea] px-4 pt-4 pb-4">
                     <label htmlFor="plate-input" className="block text-sm font-bold text-[#344054]">
-                      Plate candidates
+                      Plate ideas
                     </label>
                     <textarea
                       id="plate-input"
@@ -816,7 +800,7 @@ export default function Home() {
 
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-[#526172]">
                       <span>
-                        <strong className="font-black text-[#101828]">{parsedPlates.length}</strong> candidates detected
+                        <strong className="font-black text-[#101828]">{parsedPlates.length}</strong> ideas detected
                       </span>
                       <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold">2-7 characters</span>
                     </div>

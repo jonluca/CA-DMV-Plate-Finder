@@ -323,7 +323,7 @@ function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, gener
       return createProgressEvent({
         event,
         generatedCount,
-        message: "OpenAI queued the generation request.",
+        message: "Your idea request is in line.",
         model,
         stage: "queued",
       });
@@ -331,7 +331,7 @@ function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, gener
       return createProgressEvent({
         event,
         generatedCount,
-        message: "OpenAI accepted the generation request.",
+        message: "Starting your plate ideas.",
         model,
         stage: "created",
       });
@@ -339,7 +339,7 @@ function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, gener
       return createProgressEvent({
         event,
         generatedCount,
-        message: "OpenAI is generating plate ideas.",
+        message: "Finding plate ideas that match your theme.",
         model,
         stage: "in_progress",
       });
@@ -348,7 +348,7 @@ function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, gener
       return createProgressEvent({
         event,
         generatedCount,
-        message: "OpenAI started the structured response.",
+        message: "Building your idea list.",
         model,
         stage: "content_started",
       });
@@ -356,7 +356,7 @@ function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, gener
       return createProgressEvent({
         event,
         generatedCount,
-        message: "OpenAI finished streaming text; validating candidates.",
+        message: "Reviewing the ideas before checking availability.",
         model,
         stage: "output_done",
       });
@@ -364,7 +364,7 @@ function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, gener
       return createProgressEvent({
         event,
         generatedCount,
-        message: "OpenAI completed generation; preparing the final candidate list.",
+        message: "Ideas are ready. Starting availability checks.",
         model,
         stage: "completed",
       });
@@ -372,7 +372,7 @@ function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, gener
       return createProgressEvent({
         event,
         generatedCount,
-        message: "OpenAI stopped before completing the response.",
+        message: "Idea generation stopped before finishing.",
         model,
         stage: "incomplete",
       });
@@ -380,7 +380,7 @@ function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, gener
       return createProgressEvent({
         event,
         generatedCount,
-        message: "OpenAI reported a generation failure.",
+        message: "Idea generation failed.",
         model,
         stage: "failed",
       });
@@ -388,7 +388,7 @@ function mapOpenAIProgressEvent(event: ResponseStreamEvent, model: string, gener
       return createProgressEvent({
         event,
         generatedCount,
-        message: `OpenAI stream error: ${event.message}`,
+        message: "Something went wrong while generating ideas.",
         model,
         stage: "error",
       });
@@ -456,7 +456,7 @@ export async function* generatePlateCandidatesFromPromptStream({
       yield createProgressEvent({
         event,
         generatedCount: streamedPlates.size,
-        message: "OpenAI is streaming candidate text.",
+        message: "Plate ideas are coming in.",
         model,
         stage: "streaming_output",
       });

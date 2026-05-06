@@ -221,7 +221,7 @@ assert.deepEqual(
 assert.deepEqual(streamedEvents[0], {
   type: "progress",
   stage: "created",
-  message: "OpenAI accepted the generation request.",
+  message: "Starting your plate ideas.",
   apiEvent: "response.created",
   model: "gpt-5",
   generatedCount: 0,
