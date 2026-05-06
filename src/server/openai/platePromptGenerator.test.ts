@@ -202,7 +202,9 @@ for await (const event of generatePlateCandidatesFromPromptStream({
 }
 
 assert.deepEqual(
-  streamedEvents.map((event) => (event.type === "progress" ? `${event.type}:${event.stage}` : event.type === "plate" ? `plate:${event.plate}` : event.type)),
+  streamedEvents.map((event) =>
+    event.type === "progress" ? `${event.type}:${event.stage}` : event.type === "plate" ? `plate:${event.plate}` : event.type,
+  ),
   [
     "progress:created",
     "progress:in_progress",

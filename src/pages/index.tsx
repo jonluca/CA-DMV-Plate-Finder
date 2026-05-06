@@ -733,11 +733,7 @@ export default function Home() {
                 </button>
 
                 {(isGenerating || generationProgress) && (
-                  <div
-                    className="mt-3 rounded-lg border border-[#8abde8] bg-[#e8f3ff] p-3"
-                    role="status"
-                    aria-live="polite"
-                  >
+                  <div className="mt-3 rounded-lg border border-[#8abde8] bg-[#e8f3ff] p-3" role="status" aria-live="polite">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-[#0a56a3]">
@@ -748,7 +744,7 @@ export default function Home() {
                           {generationProgress?.responseStatus ? ` Status: ${generationProgress.responseStatus}.` : ""}
                         </p>
                       </div>
-                      <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-black tabular-nums text-[#0a56a3]">
+                      <span className="shrink-0 rounded-full bg-white px-2.5 py-1 text-xs font-black text-[#0a56a3] tabular-nums">
                         {generationProgressCountLabel}
                       </span>
                     </div>
