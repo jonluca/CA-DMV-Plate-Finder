@@ -12,12 +12,11 @@ import {
 } from "~/plateRules";
 
 export const DEFAULT_OPENAI_MODEL = "gpt-5.5";
-export const MAX_GENERATED_PLATES = 50;
-const MIN_OPENAI_OUTPUT_TOKENS = 8000;
-const OPENAI_OUTPUT_TOKENS_PER_PLATE = 200;
+const MIN_GENERATED_PLATES = 1;
+const OPENAI_MAX_OUTPUT_TOKENS = 10000;
 
 const GeneratedPlateResponseSchema = z.object({
-  plates: z.array(z.string().min(1).max(32)).min(MAX_GENERATED_PLATES).max(MAX_GENERATED_PLATES),
+  plates: z.array(z.string().min(1).max(32)).min(MIN_GENERATED_PLATES),
 });
 
 type GeneratedPlateResponse = z.infer<typeof GeneratedPlateResponseSchema>;
@@ -94,7 +93,7 @@ export type GeneratedPlateStreamEvent =
       apiEvent: ResponseStreamEvent["type"];
       model: string;
       generatedCount: number;
-      targetCount: number;
+      targetCount?: number;
       sequenceNumber?: number;
       responseId?: string;
       responseStatus?: string;
@@ -104,14 +103,14 @@ export type GeneratedPlateStreamEvent =
       plate: string;
       model: string;
       generatedCount: number;
-      targetCount: number;
+      targetCount?: number;
     }
   | {
       type: "complete";
       plates: string[];
       rejected: GeneratedPlateResult["rejected"];
       model: string;
-      targetCount: number;
+      targetCount?: number;
     };
 
 export function extractResponseOutputText(payload: OpenAIResponsePayload): string {
@@ -181,10 +180,7 @@ export function extractPlateCandidatesFromPartialJson(outputText: string): strin
 
 function buildPlateResponseSchema() {
   return z.object({
-    plates: z
-      .array(z.string().min(MIN_PERSONALIZED_PLATE_LENGTH).max(MAX_PERSONALIZED_PLATE_LENGTH))
-      .min(MAX_GENERATED_PLATES)
-      .max(MAX_GENERATED_PLATES),
+    plates: z.array(z.string().min(MIN_PERSONALIZED_PLATE_LENGTH).max(MAX_PERSONALIZED_PLATE_LENGTH)).min(MIN_GENERATED_PLATES),
   });
 }
 
@@ -202,7 +198,7 @@ function buildInstructions(): string {
     "Prefer short, memorable, readable candidates that match the user's theme when spaces and / are rendered as spacing.",
     "Use variety across wording, abbreviations, numbers, and spacing so the returned set is not repetitive.",
     "Do not include explanations, rankings, or descriptions.",
-    "Check the complete list before responding: the maximum number of unique values the response schema allows, no invalid characters, no duplicate meanings when a better alternative is available.",
+    "Check the complete list before responding: return as many strong unique values as fit in the response budget, do not stop at an arbitrary fixed count, no invalid characters, no duplicate meanings when a better alternative is available.",
   ].join("\n");
 }
 
@@ -233,7 +229,7 @@ function getReasoningEffort(model: string): ReasoningEffort | undefined {
 }
 
 function calculateMaxOutputTokens(): number {
-  return Math.max(MIN_OPENAI_OUTPUT_TOKENS, MAX_GENERATED_PLATES * OPENAI_OUTPUT_TOKENS_PER_PLATE);
+  return OPENAI_MAX_OUTPUT_TOKENS;
 }
 
 function buildPlateGenerationRequest({
@@ -247,7 +243,7 @@ function buildPlateGenerationRequest({
 }) {
   return {
     model,
-    input: ["Generate the maximum number of unique plate candidates allowed by the response schema.", "User theme:", prompt].join("\n"),
+    input: ["Generate a broad set of unique plate candidates for the user's theme.", "User theme:", prompt].join("\n"),
     instructions: buildInstructions(),
     max_output_tokens: calculateMaxOutputTokens(),
     store: false,
@@ -315,7 +311,6 @@ function createProgressEvent({
     apiEvent: event.type,
     model,
     generatedCount,
-    targetCount: MAX_GENERATED_PLATES,
     ...(typeof eventWithSequence.sequence_number === "number" ? { sequenceNumber: eventWithSequence.sequence_number } : {}),
     ...(typeof eventWithResponse.response?.id === "string" ? { responseId: eventWithResponse.response.id } : {}),
     ...(typeof eventWithResponse.response?.status === "string" ? { responseStatus: eventWithResponse.response.status } : {}),
@@ -481,7 +476,6 @@ export async function* generatePlateCandidatesFromPromptStream({
         plate,
         model,
         generatedCount: streamedPlates.size,
-        targetCount: MAX_GENERATED_PLATES,
       };
     }
   }
@@ -498,6 +492,5 @@ export async function* generatePlateCandidatesFromPromptStream({
     plates,
     rejected,
     model,
-    targetCount: MAX_GENERATED_PLATES,
   };
 }
