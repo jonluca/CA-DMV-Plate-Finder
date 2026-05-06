@@ -359,7 +359,9 @@ export default function Home() {
       return;
     }
 
-    setInputText((currentInput) => formatPlateListForInput(uniquePlateCandidates([...parsePlateCandidates(currentInput), ...normalizedCandidates])));
+    setInputText((currentInput) =>
+      formatPlateListForInput(uniquePlateCandidates([...parsePlateCandidates(currentInput), ...normalizedCandidates])),
+    );
 
     const platesToCheck = normalizedCandidates.filter((plate) => !knownPlateSetRef.current.has(plate));
     if (platesToCheck.length === 0) {
@@ -518,7 +520,16 @@ export default function Home() {
   const hasActiveChecks = counts.checking > 0 || isChecking;
   const totalTargets = plateResults.length;
   const completionPercent = totalTargets ? Math.min(100, Math.round((counts.totalChecked / totalTargets) * 100)) : 0;
-  const runStatus = isGenerating && hasActiveChecks ? "Generating + checking" : isGenerating ? "Generating ideas" : hasActiveChecks ? "Checking DMV" : plateResults.length ? "Results ready" : "Ready";
+  const runStatus =
+    isGenerating && hasActiveChecks
+      ? "Generating + checking"
+      : isGenerating
+        ? "Generating ideas"
+        : hasActiveChecks
+          ? "Checking DMV"
+          : plateResults.length
+            ? "Results ready"
+            : "Ready";
   const previewPlate = parsedPlates[0] ?? generatedPlates[0] ?? "SUNSET";
   const hasActiveResultControls = filter !== "all" || resultQuery.trim().length > 0;
 
@@ -629,111 +640,128 @@ export default function Home() {
               <div className="rounded-lg border border-[#d8e0ea] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
                 <PanelHeader
                   kicker="Step 1"
-                  title="Build the candidate list"
-                  description="Paste known ideas or ask the generator for DMV-safe candidates."
+                  title="Generate plate ideas"
+                  description="Describe a theme and the generator will stream DMV-safe candidates into availability checks."
                   action={<MiniPlate plate={previewPlate} />}
                 />
 
-                <label htmlFor="plate-input" className="mt-5 block text-sm font-bold text-[#344054]">
-                  Plate candidates
+                <label htmlFor="plate-generation-prompt" className="mt-5 block text-sm font-bold text-[#344054]">
+                  Prompt
                 </label>
                 <textarea
-                  id="plate-input"
-                  value={inputText}
-                  onChange={handleInputChange}
-                  onBlur={normalizeInputList}
-                  placeholder={"SUNSET\nTESLA 1\nSURF/1\nEVRIDE\nGOLDN8"}
-                  className="mt-2 min-h-48 w-full resize-y rounded-lg border border-[#c8d2df] bg-[#fbfcfe] p-4 font-mono text-sm text-[#172033] shadow-inner transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6] disabled:text-[#7a8796]"
-                  disabled={hasActiveChecks}
+                  id="plate-generation-prompt"
+                  value={generationPrompt}
+                  onChange={(event) => setGenerationPrompt(event.target.value)}
+                  placeholder="Short beach-themed plates for a vintage Porsche"
+                  className="mt-2 min-h-28 w-full resize-y rounded-lg border border-[#c8d2df] bg-[#fbfcfe] p-4 text-sm text-[#172033] shadow-inner transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6] disabled:text-[#7a8796]"
+                  disabled={isGenerating}
                 />
 
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-[#526172]">
-                  <span>
-                    <strong className="font-black text-[#101828]">{parsedPlates.length}</strong> candidates detected
-                  </span>
-                  <span className="rounded-full bg-[#eef3f8] px-2.5 py-1 text-xs font-bold">2-7 characters</span>
-                </div>
-                <p className="mt-2 text-xs leading-5 text-[#667587]">
-                  Use letters, digits 1-9, spaces for full spaces, and / for half-spaces.
-                </p>
+                <button
+                  type="button"
+                  onClick={handleGeneratePlates}
+                  disabled={isGenerating || generationPrompt.trim().length < 3}
+                  className="mt-3 w-full rounded-lg border border-[#0a56a3] bg-[#0a56a3] px-4 py-3 text-sm font-black text-white transition hover:bg-[#084987] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/20 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-[#c8d2df] disabled:bg-[#d5dce5] disabled:text-[#7b8795]"
+                >
+                  {isGenerating ? "Generating..." : "Generate and check ideas"}
+                </button>
 
-                <div className="mt-5 rounded-lg border border-[#d8e0ea] bg-[#f8fbff] p-4">
-                  <PanelHeader
-                    kicker="AI assist"
-                    title="Generate plate ideas"
-                    description="Describe a theme and keep the valid candidates."
-                  />
+                {generationError && (
+                  <div className="mt-3 rounded-lg border border-[#f1ca6d] bg-[#fff4d6] px-3 py-2 text-sm font-semibold text-[#765100]">
+                    {generationError}
+                  </div>
+                )}
 
-                  <label htmlFor="plate-generation-prompt" className="mt-4 block text-sm font-bold text-[#344054]">
-                    Prompt
-                  </label>
-                  <textarea
-                    id="plate-generation-prompt"
-                    value={generationPrompt}
-                    onChange={(event) => setGenerationPrompt(event.target.value)}
-                    placeholder="Short beach-themed plates for a vintage Porsche"
-                    className="mt-2 min-h-24 w-full resize-y rounded-lg border border-[#c8d2df] bg-white p-3 text-sm text-[#172033] shadow-inner transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6] disabled:text-[#7a8796]"
-                    disabled={isGenerating}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={handleGeneratePlates}
-                    disabled={isGenerating || generationPrompt.trim().length < 3}
-                    className="mt-3 w-full rounded-lg border border-[#0a56a3] bg-[#0a56a3] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#084987] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/20 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-[#c8d2df] disabled:bg-[#d5dce5] disabled:text-[#7b8795]"
-                  >
-                    {isGenerating ? "Generating..." : "Generate ideas"}
-                  </button>
-
-                  {generationError && (
-                    <div className="mt-3 rounded-lg border border-[#f1ca6d] bg-[#fff4d6] px-3 py-2 text-sm font-semibold text-[#765100]">
-                      {generationError}
+                {generatedPlates.length > 0 && (
+                  <div className="mt-4 rounded-lg border border-[#d8e0ea] bg-[#f8fbff] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[#526172]">
+                      <span>
+                        {generatedPlates.length} generated with {generatedModel}
+                      </span>
+                      {rejectedGenerationCount > 0 && <span>{rejectedGenerationCount} filtered out</span>}
                     </div>
-                  )}
-
-                  {generatedPlates.length > 0 && (
-                    <div className="mt-4 rounded-lg border border-[#d8e0ea] bg-white p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[#526172]">
-                        <span>
-                          {generatedPlates.length} generated with {generatedModel}
-                        </span>
-                        {rejectedGenerationCount > 0 && <span>{rejectedGenerationCount} filtered out</span>}
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {generatedPlates.map((plate) => (
-                          <MiniPlate key={plate} plate={plate} />
-                        ))}
-                      </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {generatedPlates.map((plate) => (
+                        <MiniPlate key={plate} plate={plate} />
+                      ))}
                     </div>
-                  )}
-                </div>
+                  </div>
+                )}
 
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  {!hasActiveChecks ? (
-                    <>
+                <details className="group mt-5 rounded-lg border border-[#d8e0ea] bg-[#f8fbff]">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-left marker:hidden focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
+                    <span>
+                      <span className="block text-sm font-black text-[#101828]">Manual plate candidates</span>
+                      <span className="mt-0.5 block text-xs font-semibold text-[#667587]">
+                        Paste a manual list when you already know what to check.
+                      </span>
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-[#526172]">
+                        {parsedPlates.length} detected
+                      </span>
+                      <span className="text-lg font-black text-[#0a56a3] group-open:hidden" aria-hidden="true">
+                        +
+                      </span>
+                      <span className="hidden text-lg font-black text-[#0a56a3] group-open:block" aria-hidden="true">
+                        -
+                      </span>
+                    </span>
+                  </summary>
+
+                  <div className="border-t border-[#d8e0ea] px-4 pt-4 pb-4">
+                    <label htmlFor="plate-input" className="block text-sm font-bold text-[#344054]">
+                      Plate candidates
+                    </label>
+                    <textarea
+                      id="plate-input"
+                      value={inputText}
+                      onChange={handleInputChange}
+                      onBlur={normalizeInputList}
+                      placeholder={"SUNSET\nTESLA 1\nSURF/1\nEVRIDE\nGOLDN8"}
+                      className="mt-2 min-h-48 w-full resize-y rounded-lg border border-[#c8d2df] bg-white p-4 font-mono text-sm text-[#172033] shadow-inner transition placeholder:text-[#98a4b3] focus:border-[#0a56a3] focus:ring-4 focus:ring-[#0a56a3]/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-[#eef2f6] disabled:text-[#7a8796]"
+                      disabled={hasActiveChecks}
+                    />
+
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-[#526172]">
+                      <span>
+                        <strong className="font-black text-[#101828]">{parsedPlates.length}</strong> candidates detected
+                      </span>
+                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-bold">2-7 characters</span>
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-[#667587]">
+                      Use letters, digits 1-9, spaces for full spaces, and / for half-spaces.
+                    </p>
+
+                    {!hasActiveChecks && (
                       <button
                         type="button"
                         onClick={handleCheckPlates}
                         disabled={parsedPlates.length === 0}
-                        className="flex-1 rounded-lg bg-[#ffd84d] px-5 py-3 text-sm font-black text-[#152238] transition hover:bg-[#f4c935] focus-visible:ring-4 focus-visible:ring-[#ffd84d]/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-[#d5dce5] disabled:text-[#7b8795]"
+                        className="mt-4 w-full rounded-lg bg-[#ffd84d] px-5 py-3 text-sm font-black text-[#152238] transition hover:bg-[#f4c935] focus-visible:ring-4 focus-visible:ring-[#ffd84d]/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-[#d5dce5] disabled:text-[#7b8795]"
                       >
-                        Check plates
+                        Check manual list
                       </button>
-                      <button
-                        type="button"
-                        onClick={handleClear}
-                        className="rounded-lg border border-[#c8d2df] bg-white px-5 py-3 text-sm font-bold text-[#344054] transition hover:border-[#98a4b3] hover:bg-[#f7f9fc] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none"
-                      >
-                        Clear
-                      </button>
-                    </>
-                  ) : (
+                    )}
+                  </div>
+                </details>
+
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                  {hasActiveChecks ? (
                     <button
                       type="button"
                       onClick={handleStop}
                       className="flex-1 rounded-lg bg-[#d6453d] px-5 py-3 text-sm font-black text-white transition hover:bg-[#bf332c] focus-visible:ring-4 focus-visible:ring-[#d6453d]/20 focus-visible:outline-none"
                     >
                       Stop checking
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleClear}
+                      className="flex-1 rounded-lg border border-[#c8d2df] bg-white px-5 py-3 text-sm font-bold text-[#344054] transition hover:border-[#98a4b3] hover:bg-[#f7f9fc] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none"
+                    >
+                      Clear
                     </button>
                   )}
                 </div>
