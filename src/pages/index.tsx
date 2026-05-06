@@ -248,10 +248,8 @@ export default function Home() {
   const [inputText, setInputText] = useState("");
   const [generationPrompt, setGenerationPrompt] = useState("");
   const [generationRequest, setGenerationRequest] = useState<{ prompt: string; requestId: number } | null>(null);
-  const [generatedPlates, setGeneratedPlates] = useState<string[]>([]);
   const [generationProgress, setGenerationProgress] = useState<GenerationProgressState | null>(null);
   const [generationError, setGenerationError] = useState("");
-  const [rejectedGenerationCount, setRejectedGenerationCount] = useState(0);
   const [plates, setPlates] = useState<string[]>([]);
   const [results, setResults] = useState<PlateResult[]>([]);
   const [filter, setFilter] = useState<FilterType>("all");
@@ -302,7 +300,6 @@ export default function Home() {
       }
 
       if (event.type === "plate") {
-        setGeneratedPlates((prev) => uniquePlateCandidates([...prev, event.plate]));
         setGenerationProgress({
           message: "Plate ideas are coming in.",
           generatedCount: event.generatedCount,
@@ -313,8 +310,6 @@ export default function Home() {
         return;
       }
 
-      setGeneratedPlates(event.plates);
-      setRejectedGenerationCount(event.rejected.length);
       setGenerationProgress({
         message: "Ideas are ready. Checking availability.",
         generatedCount: event.plates.length,
@@ -454,8 +449,6 @@ export default function Home() {
       generatedCount: 0,
       updatedAt: new Date(),
     });
-    setGeneratedPlates([]);
-    setRejectedGenerationCount(0);
     setGenerationRequest({
       prompt,
       requestId: Date.now(),
@@ -481,10 +474,8 @@ export default function Home() {
     setInputText("");
     setPlates([]);
     setResults([]);
-    setGeneratedPlates([]);
     setGenerationProgress(null);
     setGenerationError("");
-    setRejectedGenerationCount(0);
     setGenerationRequest(null);
     setFilter("all");
     setResultQuery("");
@@ -572,9 +563,9 @@ export default function Home() {
           : plateResults.length
             ? "Results ready"
             : "Ready";
-  const previewPlate = parsedPlates[0] ?? generatedPlates[0] ?? "SUNSET";
+  const previewPlate = parsedPlates[0] ?? "SUNSET";
   const hasActiveResultControls = filter !== "all" || resultQuery.trim().length > 0;
-  const generationProgressCount = generationProgress?.generatedCount ?? generatedPlates.length;
+  const generationProgressCount = generationProgress?.generatedCount ?? 0;
   const generationProgressTarget = generationProgress?.targetCount;
   const generationProgressPercent = generationProgressTarget
     ? Math.min(100, Math.round((generationProgressCount / generationProgressTarget) * 100))
@@ -746,20 +737,6 @@ export default function Home() {
                 {generationError && (
                   <div className="mt-3 rounded-lg border border-[#f1ca6d] bg-[#fff4d6] px-3 py-2 text-sm font-semibold text-[#765100]">
                     {generationError}
-                  </div>
-                )}
-
-                {generatedPlates.length > 0 && (
-                  <div className="mt-4 rounded-lg border border-[#d8e0ea] bg-[#f8fbff] p-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-bold text-[#526172]">
-                      <span>{generatedPlates.length} ideas generated</span>
-                      {rejectedGenerationCount > 0 && <span>{rejectedGenerationCount} not usable</span>}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {generatedPlates.map((plate) => (
-                        <MiniPlate key={plate} plate={plate} />
-                      ))}
-                    </div>
                   </div>
                 )}
 
