@@ -40,8 +40,6 @@ interface GenerationProgressState {
   targetCount?: number;
 }
 
-type WorkflowStepState = "active" | "complete" | "upcoming";
-
 const promptStarters = [
   {
     label: "Coastal",
@@ -115,35 +113,6 @@ function PanelHeader({ kicker, title, description, action }: { kicker: string; t
         {description && <p className="mt-1 text-sm leading-6 text-[#667587]">{description}</p>}
       </div>
       {action}
-    </div>
-  );
-}
-
-function WorkflowStep({ number, label, state }: { number: string; label: string; state: WorkflowStepState }) {
-  const stateClassName =
-    state === "active"
-      ? "border-white/35 bg-white/16 text-white"
-      : state === "complete"
-        ? "border-[#ffd56a]/35 bg-[#ffd56a]/14 text-white"
-        : "border-white/12 bg-white/[0.06] text-white/65";
-  const numberClassName =
-    state === "active" ? "bg-[#ffd56a] text-[#152c4b]" : state === "complete" ? "bg-[#1fa265] text-white" : "bg-white/10 text-white/70";
-
-  return (
-    <div className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold ${stateClassName}`}>
-      <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black ${numberClassName}`}>
-        {state === "complete" ? "OK" : number}
-      </span>
-      {label}
-    </div>
-  );
-}
-
-function HeroMetric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5">
-      <dt className="text-[10px] font-bold tracking-[0.14em] text-white/55 uppercase">{label}</dt>
-      <dd className="mt-1 text-xl font-black text-white tabular-nums">{value}</dd>
     </div>
   );
 }
@@ -594,16 +563,6 @@ export default function Home() {
   const hasActiveChecks = counts.checking > 0 || isChecking;
   const totalTargets = plateResults.length;
   const completionPercent = totalTargets ? Math.min(100, Math.round((counts.totalChecked / totalTargets) * 100)) : 0;
-  const runStatus =
-    isGenerating && hasActiveChecks
-      ? "Generating + checking"
-      : isGenerating
-        ? "Generating ideas"
-        : hasActiveChecks
-          ? "Checking DMV"
-          : plateResults.length
-            ? "Results ready"
-            : "Ready";
   const previewPlate = parsedPlates[0] ?? "SUNSET";
   const hasActiveResultControls = filter !== "all" || resultQuery.trim().length > 0;
   const generationProgressCount = generationProgress?.generatedCount ?? 0;
@@ -619,26 +578,6 @@ export default function Home() {
   const generationProgressCountLabel = generationProgressTarget
     ? `${generationProgressCount} of ${generationProgressTarget} ideas`
     : `${generationProgressCount} ideas found`;
-  const featuredPlate = plateResults.find((plateResult) => plateResult.status === "AVAILABLE")?.plate ?? previewPlate;
-  const featuredPlateLabel = counts.available > 0 ? "Available find" : "Plate preview";
-  const workflowSteps: { number: string; label: string; state: WorkflowStepState }[] = [
-    {
-      number: "1",
-      label: "Create ideas",
-      state: isGenerating || plateResults.length === 0 ? "active" : "complete",
-    },
-    {
-      number: "2",
-      label: "Check DMV",
-      state: hasActiveChecks ? "active" : plateResults.length > 0 ? "complete" : "upcoming",
-    },
-    {
-      number: "3",
-      label: "Choose a plate",
-      state: counts.totalChecked > 0 && !hasActiveChecks ? "active" : "upcoming",
-    },
-  ];
-
   const filterOptions: FilterOption[] = [
     {
       id: "all",
@@ -699,78 +638,11 @@ export default function Home() {
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <link rel="manifest" href="/site.webmanifest" />
-        <meta name="theme-color" content="#102b4e" />
+        <meta name="theme-color" content="#f3f4f1" />
       </Head>
-      <main className="relative min-h-screen overflow-hidden text-[#172033]">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[500px] bg-[radial-gradient(circle_at_15%_10%,rgba(250,189,72,0.2),transparent_42%),radial-gradient(circle_at_86%_0%,rgba(15,100,169,0.13),transparent_38%)]" />
-        <div className="relative mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-4 py-5 sm:px-6 lg:px-8">
-          <header className="hero-panel relative overflow-hidden rounded-[28px] p-5 text-white sm:p-7">
-            <div className="hero-sun pointer-events-none absolute -top-24 right-16 size-64 rounded-full" aria-hidden="true" />
-            <div className="pointer-events-none absolute right-[29rem] bottom-0 hidden h-24 w-px bg-white/10 xl:block" aria-hidden="true" />
-            <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch">
-              <div>
-                <div className="flex items-center gap-3">
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/12 text-sm font-black tracking-[0.14em] text-white">
-                    CA
-                  </div>
-                  <p className="text-[11px] font-bold tracking-[0.2em] text-[#ffd56a] uppercase">California DMV availability</p>
-                </div>
-                <h1 className="mt-5 text-3xl font-black tracking-tight text-white sm:text-[2.7rem] sm:leading-[1.06]">
-                  Find a custom plate
-                  <span className="block text-[#ffd56a]">worth the drive.</span>
-                </h1>
-                <p className="mt-3 max-w-xl text-sm leading-6 text-white/72 sm:text-base">
-                  Turn an idea into plate-ready options, stream availability checks, and save the best California finds in one run.
-                </p>
-                <div className="mt-6 flex flex-wrap gap-2" aria-label="Plate finding workflow">
-                  {workflowSteps.map((step) => (
-                    <WorkflowStep key={step.number} {...step} />
-                  ))}
-                </div>
-              </div>
-
-              <aside className="rounded-[22px] border border-white/12 bg-white/[0.08] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm sm:p-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-bold tracking-[0.16em] text-white/55 uppercase">Current run</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span
-                        className={`h-2.5 w-2.5 rounded-full ${hasActiveChecks || isGenerating ? "bg-[#ffd56a]" : "bg-[#43c47a]"}`}
-                        aria-hidden="true"
-                      />
-                      <span className="text-sm font-black text-white">{runStatus}</span>
-                    </div>
-                  </div>
-                  <a
-                    href="https://blog.jonlu.ca/posts/ca-plate-checker"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:border-white/40 hover:bg-white/15 focus-visible:ring-4 focus-visible:ring-white/20 focus-visible:outline-none"
-                  >
-                    Guide -&gt;
-                  </a>
-                </div>
-
-                <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl bg-white p-3 text-[#172033] shadow-[0_12px_30px_rgba(5,16,32,0.17)]">
-                  <div>
-                    <p className="text-[10px] font-bold tracking-[0.16em] text-[#667587] uppercase">{featuredPlateLabel}</p>
-                    <p className="mt-1 text-xs font-semibold text-[#526172]">
-                      {counts.available > 0 ? "Ready to shortlist" : "Your first idea appears here"}
-                    </p>
-                  </div>
-                  <MiniPlate plate={featuredPlate} />
-                </div>
-
-                <dl className="mt-4 grid grid-cols-3 gap-2">
-                  <HeroMetric label="Queued" value={totalTargets} />
-                  <HeroMetric label="Checked" value={counts.totalChecked} />
-                  <HeroMetric label="Open" value={counts.available} />
-                </dl>
-              </aside>
-            </div>
-          </header>
-
-          <div className="mt-5 grid flex-1 grid-cols-1 gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
+      <main className="min-h-screen text-[#172033]">
+        <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-4 py-5 sm:px-6 lg:px-8">
+          <div className="grid flex-1 grid-cols-1 gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
             <section className="space-y-5" aria-label="Plate input and run summary">
               <div className="surface-card rounded-[24px] p-5 sm:p-6">
                 <PanelHeader

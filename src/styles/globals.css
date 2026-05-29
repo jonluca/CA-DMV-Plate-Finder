@@ -19,16 +19,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-.hero-panel {
-  background:
-    linear-gradient(118deg, rgba(255, 255, 255, 0.07), transparent 38%), linear-gradient(120deg, #102b4e 0%, #0b4d87 56%, #0872a6 100%);
-  box-shadow: 0 22px 52px rgba(13, 42, 75, 0.18);
-}
-
-.hero-sun {
-  background: radial-gradient(circle, rgba(255, 213, 106, 0.3) 0%, rgba(255, 213, 106, 0.05) 52%, transparent 70%);
-}
-
 .surface-card {
   border: 1px solid rgba(211, 219, 226, 0.9);
   background: rgba(255, 255, 255, 0.88);
