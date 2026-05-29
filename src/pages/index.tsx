@@ -40,6 +40,23 @@ interface GenerationProgressState {
   targetCount?: number;
 }
 
+type WorkflowStepState = "active" | "complete" | "upcoming";
+
+const promptStarters = [
+  {
+    label: "Coastal",
+    prompt: "Coastal sunset drives, ocean air, and surf weekends",
+  },
+  {
+    label: "Electric",
+    prompt: "Clean electric driving with clever future-focused wordplay",
+  },
+  {
+    label: "Vintage",
+    prompt: "Classic air-cooled sports car cruising California backroads",
+  },
+];
+
 const statusStyles: Record<
   PlateResultStatus,
   {
@@ -102,9 +119,38 @@ function PanelHeader({ kicker, title, description, action }: { kicker: string; t
   );
 }
 
+function WorkflowStep({ number, label, state }: { number: string; label: string; state: WorkflowStepState }) {
+  const stateClassName =
+    state === "active"
+      ? "border-white/35 bg-white/16 text-white"
+      : state === "complete"
+        ? "border-[#ffd56a]/35 bg-[#ffd56a]/14 text-white"
+        : "border-white/12 bg-white/[0.06] text-white/65";
+  const numberClassName =
+    state === "active" ? "bg-[#ffd56a] text-[#152c4b]" : state === "complete" ? "bg-[#1fa265] text-white" : "bg-white/10 text-white/70";
+
+  return (
+    <div className={`flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-bold ${stateClassName}`}>
+      <span className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-black ${numberClassName}`}>
+        {state === "complete" ? "OK" : number}
+      </span>
+      {label}
+    </div>
+  );
+}
+
+function HeroMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.07] px-3 py-2.5">
+      <dt className="text-[10px] font-bold tracking-[0.14em] text-white/55 uppercase">{label}</dt>
+      <dd className="mt-1 text-xl font-black text-white tabular-nums">{value}</dd>
+    </div>
+  );
+}
+
 function StatCard({ stat }: { stat: StatItem }) {
   return (
-    <div className="rounded-lg border border-[#d9e2ec] bg-white p-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+    <div className="rounded-xl border border-[#e2e5e3] bg-white/80 p-3 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
       <p className="text-[11px] font-bold tracking-[0.12em] text-[#6a7787] uppercase">{stat.label}</p>
       <p className={`mt-2 text-2xl font-black tabular-nums ${stat.className}`}>{stat.value}</p>
     </div>
@@ -256,7 +302,7 @@ export default function Home() {
   const [sortField, setSortField] = useState<SortField>("status");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [resultQuery, setResultQuery] = useState("");
-  const resultsEndRef = useRef<HTMLDivElement>(null);
+  const resultsScrollRef = useRef<HTMLDivElement>(null);
   const activePlatesRef = useRef<string[]>([]);
   const queuedPlatesRef = useRef<string[]>([]);
   const knownPlateSetRef = useRef<Set<string>>(new Set());
@@ -264,7 +310,14 @@ export default function Home() {
   const parsedPlates = useMemo(() => parsePlateCandidates(inputText), [inputText]);
 
   useEffect(() => {
-    resultsEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (results.length === 0) {
+      return;
+    }
+
+    resultsScrollRef.current?.scrollTo({
+      top: resultsScrollRef.current.scrollHeight,
+      behavior: "smooth",
+    });
   }, [results]);
 
   const result = api.plateChecker.checkPlates.useSubscription(plates.length ? { plates } : skipToken, {
@@ -578,6 +631,25 @@ export default function Home() {
   const generationProgressCountLabel = generationProgressTarget
     ? `${generationProgressCount} of ${generationProgressTarget} ideas`
     : `${generationProgressCount} ideas found`;
+  const featuredPlate = plateResults.find((plateResult) => plateResult.status === "AVAILABLE")?.plate ?? previewPlate;
+  const featuredPlateLabel = counts.available > 0 ? "Available find" : "Plate preview";
+  const workflowSteps: { number: string; label: string; state: WorkflowStepState }[] = [
+    {
+      number: "1",
+      label: "Create ideas",
+      state: isGenerating || plateResults.length === 0 ? "active" : "complete",
+    },
+    {
+      number: "2",
+      label: "Check DMV",
+      state: hasActiveChecks ? "active" : plateResults.length > 0 ? "complete" : "upcoming",
+    },
+    {
+      number: "3",
+      label: "Choose a plate",
+      state: counts.totalChecked > 0 && !hasActiveChecks ? "active" : "upcoming",
+    },
+  ];
 
   const filterOptions: FilterOption[] = [
     {
@@ -639,51 +711,80 @@ export default function Home() {
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
         <link rel="manifest" href="/site.webmanifest" />
-        <meta name="theme-color" content="#f3f6fa" />
+        <meta name="theme-color" content="#102b4e" />
       </Head>
-      <main className="min-h-screen bg-[#f3f6fa] text-[#172033]">
-        <div className="mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-4 py-5 sm:px-6 lg:px-8">
-          <header className="rounded-lg border border-[#d8e0ea] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)] sm:p-5">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-[#0a56a3] bg-[#0a56a3] text-sm font-black tracking-[0.14em] text-white">
-                  CA
+      <main className="relative min-h-screen overflow-hidden text-[#172033]">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[500px] bg-[radial-gradient(circle_at_15%_10%,rgba(250,189,72,0.2),transparent_42%),radial-gradient(circle_at_86%_0%,rgba(15,100,169,0.13),transparent_38%)]" />
+        <div className="relative mx-auto flex min-h-screen w-full max-w-[1500px] flex-col px-4 py-5 sm:px-6 lg:px-8">
+          <header className="hero-panel relative overflow-hidden rounded-[28px] p-5 text-white sm:p-7">
+            <div className="hero-sun pointer-events-none absolute -top-24 right-16 size-64 rounded-full" aria-hidden="true" />
+            <div className="pointer-events-none absolute right-[29rem] bottom-0 hidden h-24 w-px bg-white/10 xl:block" aria-hidden="true" />
+            <div className="relative grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch">
+              <div>
+                <div className="flex items-center gap-3">
+                  <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-white/25 bg-white/12 text-sm font-black tracking-[0.14em] text-white">
+                    CA
+                  </div>
+                  <p className="text-[11px] font-bold tracking-[0.2em] text-[#ffd56a] uppercase">California DMV availability</p>
                 </div>
-                <div>
-                  <p className="text-xs font-bold tracking-[0.18em] text-[#0a56a3] uppercase">California DMV availability workspace</p>
-                  <h1 className="mt-1 text-3xl font-black tracking-tight text-[#101828] sm:text-4xl">CA DMV Plate Finder</h1>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[#526172] sm:text-base">
-                    Generate plate ideas, check availability, and keep export-ready results organized while a run is active.
-                  </p>
+                <h1 className="mt-5 text-3xl font-black tracking-tight text-white sm:text-[2.7rem] sm:leading-[1.06]">
+                  Find a custom plate
+                  <span className="block text-[#ffd56a]">worth the drive.</span>
+                </h1>
+                <p className="mt-3 max-w-xl text-sm leading-6 text-white/72 sm:text-base">
+                  Turn an idea into plate-ready options, stream availability checks, and save the best California finds in one run.
+                </p>
+                <div className="mt-6 flex flex-wrap gap-2" aria-label="Plate finding workflow">
+                  {workflowSteps.map((step) => (
+                    <WorkflowStep key={step.number} {...step} />
+                  ))}
                 </div>
               </div>
 
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <div className="rounded-lg border border-[#d8e0ea] bg-[#f8fbff] px-4 py-3">
-                  <p className="text-[11px] font-bold tracking-[0.12em] text-[#6a7787] uppercase">Current run</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${hasActiveChecks ? "bg-[#0a6fbf]" : "bg-[#2f9e53]"}`} aria-hidden="true" />
-                    <span className="text-sm font-black text-[#101828]">{runStatus}</span>
+              <aside className="rounded-[22px] border border-white/12 bg-white/[0.08] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-sm sm:p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold tracking-[0.16em] text-white/55 uppercase">Current run</p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <span
+                        className={`h-2.5 w-2.5 rounded-full ${hasActiveChecks || isGenerating ? "bg-[#ffd56a]" : "bg-[#43c47a]"}`}
+                        aria-hidden="true"
+                      />
+                      <span className="text-sm font-black text-white">{runStatus}</span>
+                    </div>
                   </div>
+                  <a
+                    href="https://blog.jonlu.ca/posts/ca-plate-checker"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-bold text-white transition hover:border-white/40 hover:bg-white/15 focus-visible:ring-4 focus-visible:ring-white/20 focus-visible:outline-none"
+                  >
+                    Guide -&gt;
+                  </a>
                 </div>
-                <a
-                  href="https://blog.jonlu.ca/posts/ca-plate-checker"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center justify-center rounded-lg border border-[#b8c8d9] bg-white px-4 py-3 text-sm font-bold text-[#0a56a3] transition hover:border-[#0a56a3] hover:bg-[#f8fbff] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/15 focus-visible:outline-none"
-                >
-                  How it works{" "}
-                  <span className="ml-2" aria-hidden="true">
-                    -&gt;
-                  </span>
-                </a>
-              </div>
+
+                <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl bg-white p-3 text-[#172033] shadow-[0_12px_30px_rgba(5,16,32,0.17)]">
+                  <div>
+                    <p className="text-[10px] font-bold tracking-[0.16em] text-[#667587] uppercase">{featuredPlateLabel}</p>
+                    <p className="mt-1 text-xs font-semibold text-[#526172]">
+                      {counts.available > 0 ? "Ready to shortlist" : "Your first idea appears here"}
+                    </p>
+                  </div>
+                  <MiniPlate plate={featuredPlate} />
+                </div>
+
+                <dl className="mt-4 grid grid-cols-3 gap-2">
+                  <HeroMetric label="Queued" value={totalTargets} />
+                  <HeroMetric label="Checked" value={counts.totalChecked} />
+                  <HeroMetric label="Open" value={counts.available} />
+                </dl>
+              </aside>
             </div>
           </header>
 
           <div className="mt-5 grid flex-1 grid-cols-1 gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
             <section className="space-y-5" aria-label="Plate input and run summary">
-              <div className="rounded-lg border border-[#d8e0ea] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+              <div className="surface-card rounded-[24px] p-5 sm:p-6">
                 <PanelHeader
                   kicker="Step 1"
                   title="Generate plate ideas"
@@ -703,17 +804,35 @@ export default function Home() {
                   disabled={isGenerating}
                 />
 
+                <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Idea starters">
+                  <span className="mr-1 text-xs font-bold tracking-[0.12em] text-[#667587] uppercase">Try</span>
+                  {promptStarters.map((starter) => (
+                    <button
+                      key={starter.label}
+                      type="button"
+                      onClick={() => {
+                        setGenerationPrompt(starter.prompt);
+                        setGenerationError("");
+                      }}
+                      disabled={isGenerating}
+                      className="rounded-full border border-[#d8e0ea] bg-[#f8fbff] px-3 py-1.5 text-xs font-bold text-[#0a56a3] transition hover:border-[#0a56a3] hover:bg-[#edf5ff] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {starter.label}
+                    </button>
+                  ))}
+                </div>
+
                 <button
                   type="button"
                   onClick={handleGeneratePlates}
                   disabled={isGenerating || generationPrompt.trim().length < 3}
-                  className="mt-3 w-full rounded-lg border border-[#0a56a3] bg-[#0a56a3] px-4 py-3 text-sm font-black text-white transition hover:bg-[#084987] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/20 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-[#c8d2df] disabled:bg-[#d5dce5] disabled:text-[#7b8795]"
+                  className="mt-4 w-full rounded-xl border border-[#0a56a3] bg-[#0a56a3] px-4 py-3 text-sm font-black text-white shadow-[0_8px_18px_rgba(10,86,163,0.2)] transition hover:bg-[#084987] focus-visible:ring-4 focus-visible:ring-[#0a56a3]/20 focus-visible:outline-none disabled:cursor-not-allowed disabled:border-[#c8d2df] disabled:bg-[#d5dce5] disabled:text-[#7b8795] disabled:shadow-none"
                 >
                   {isGenerating ? "Generating..." : "Generate and check ideas"}
                 </button>
 
                 {(isGenerating || generationProgress) && (
-                  <div className="mt-3 rounded-lg border border-[#8abde8] bg-[#e8f3ff] p-3" role="status" aria-live="polite">
+                  <output className="mt-3 block rounded-lg border border-[#8abde8] bg-[#e8f3ff] p-3" aria-live="polite">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="text-sm font-black text-[#0a56a3]">{generationProgress?.message ?? "Starting your plate ideas..."}</p>
@@ -731,7 +850,7 @@ export default function Home() {
                         style={{ width: `${generationProgressBarWidth}%` }}
                       />
                     </div>
-                  </div>
+                  </output>
                 )}
 
                 {generationError && (
@@ -740,7 +859,7 @@ export default function Home() {
                   </div>
                 )}
 
-                <details className="group mt-5 rounded-lg border border-[#d8e0ea] bg-[#f8fbff]">
+                <details className="group mt-5 rounded-xl border border-[#d8e0ea] bg-[#f8fbff]">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-left marker:hidden focus-visible:ring-4 focus-visible:ring-[#0a56a3]/10 focus-visible:outline-none [&::-webkit-details-marker]:hidden">
                     <span>
                       <span className="block text-sm font-black text-[#101828]">Manual plate ideas</span>
@@ -819,7 +938,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-[#d8e0ea] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+              <div className="surface-card rounded-[24px] p-5 sm:p-6">
                 <PanelHeader kicker="Step 2" title="Run progress" description="Track completion and keep the outcome mix visible." />
                 <div className="mt-4">
                   <div className="flex items-center justify-between text-xs font-bold text-[#526172]">
@@ -843,7 +962,7 @@ export default function Home() {
               </div>
 
               {systemMessages.length > 0 && (
-                <div className="rounded-lg border border-[#d8e0ea] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+                <div className="surface-card rounded-[24px] p-4">
                   <h3 className="text-sm font-bold text-[#344054]">System status</h3>
                   <div className="mt-3 space-y-2 text-sm text-[#667587]">
                     {systemMessages.slice(-3).map((msg) => (
@@ -856,10 +975,7 @@ export default function Home() {
               )}
             </section>
 
-            <section
-              className="min-w-0 rounded-lg border border-[#d8e0ea] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
-              aria-label="Plate availability results"
-            >
+            <section className="surface-card min-w-0 overflow-hidden rounded-[24px]" aria-label="Plate availability results">
               <div className="border-b border-[#e1e7ef] p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <PanelHeader
@@ -901,7 +1017,7 @@ export default function Home() {
               </div>
 
               <div className="border-t border-[#f2f4f7]">
-                <div className="max-h-[calc(100vh-260px)] min-h-[500px] overflow-auto">
+                <div ref={resultsScrollRef} className="max-h-[calc(100vh-260px)] min-h-[500px] overflow-auto">
                   {filteredAndSortedResults.length === 0 ? (
                     <EmptyResults hasResults={plateResults.length > 0} hasActiveFilter={hasActiveResultControls} />
                   ) : (
@@ -917,7 +1033,6 @@ export default function Home() {
                       <ResultsCards results={filteredAndSortedResults} />
                     </>
                   )}
-                  <div ref={resultsEndRef} />
                 </div>
               </div>
             </section>
