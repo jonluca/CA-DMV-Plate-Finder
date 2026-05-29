@@ -302,23 +302,11 @@ export default function Home() {
   const [sortField, setSortField] = useState<SortField>("status");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [resultQuery, setResultQuery] = useState("");
-  const resultsScrollRef = useRef<HTMLDivElement>(null);
   const activePlatesRef = useRef<string[]>([]);
   const queuedPlatesRef = useRef<string[]>([]);
   const knownPlateSetRef = useRef<Set<string>>(new Set());
 
   const parsedPlates = useMemo(() => parsePlateCandidates(inputText), [inputText]);
-
-  useEffect(() => {
-    if (results.length === 0) {
-      return;
-    }
-
-    resultsScrollRef.current?.scrollTo({
-      top: resultsScrollRef.current.scrollHeight,
-      behavior: "smooth",
-    });
-  }, [results]);
 
   const result = api.plateChecker.checkPlates.useSubscription(plates.length ? { plates } : skipToken, {
     onData: (trackedData) => {
@@ -1017,7 +1005,7 @@ export default function Home() {
               </div>
 
               <div className="border-t border-[#f2f4f7]">
-                <div ref={resultsScrollRef} className="max-h-[calc(100vh-260px)] min-h-[500px] overflow-auto">
+                <div className="max-h-[calc(100vh-260px)] min-h-[500px] overflow-auto">
                   {filteredAndSortedResults.length === 0 ? (
                     <EmptyResults hasResults={plateResults.length > 0} hasActiveFilter={hasActiveResultControls} />
                   ) : (
